@@ -1,12 +1,11 @@
 import React from 'react';
-import { Link, NavLink, useNavigate } from 'react-router-dom'; // Import NavLink
+import { Link, NavLink } from 'react-router-dom'; // Import NavLink
 import { useAuth } from '../../contexts/AuthContext';
 import { LogOut, LayoutDashboard, History, UserCircle, Wallet } from 'lucide-react';
 import Button from '../ui/Button'; 
 
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
-  const navigate = useNavigate();
 
   const handleLogout = async () => {
     try {

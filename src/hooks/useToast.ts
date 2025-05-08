@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { AlertCircle, AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react'; // Added AlertTriangle
+import { AlertTriangle, CheckCircle, Info, XCircle } from 'lucide-react'; // Added AlertTriangle
 import React from 'react';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';

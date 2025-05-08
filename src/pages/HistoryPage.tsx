@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo, useCallback } from 'react'; // Add
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import type { Expense } from '../types';
-import { format, getYear, getMonth, parse } from 'date-fns'; // Removed start/endOfMonth as not directly used here
+import { format, getYear, getMonth } from 'date-fns'; // Removed start/endOfMonth as not directly used here
 import { toZonedTime } from 'date-fns-tz';
 import { useToast } from '../hooks/useToast';
 import ExpenseTable from '../components/Expenses/ExpenseTable'; 
