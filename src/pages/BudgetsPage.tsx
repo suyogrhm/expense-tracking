@@ -1,22 +1,21 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import type { Budget, Expense } from '../types'; // Assuming Expense type is needed for calculating spent
- // Assuming Expense type is needed for calculating spent
+import type { Budget, Expense } from '../types'; 
 import { useToast } from '../hooks/useToast';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
-import BudgetForm from '../components/Budgets/BudgetForm'; // Create this
-import BudgetList from '../components/Budgets/BudgetList'; // Create this
+import BudgetForm from '../components/Budgets/BudgetForm'; 
+import BudgetList from '../components/Budgets/BudgetList'; 
 import { PlusCircle, Loader2, Target } from 'lucide-react';
-import { getYear, getMonth, startOfMonth, endOfMonth, format } from 'date-fns';
+import { getYear, getMonth, endOfMonth, format } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import Select from '../components/ui/Select';
 
 
 const BudgetsPage: React.FC = () => {
   const [budgets, setBudgets] = useState<Budget[]>([]);
-  const [expenses, setExpenses] = useState<Expense[]>([]); // To calculate spent against budget
+  const [expenses, setExpenses] = useState<Expense[]>([]); 
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingBudget, setEditingBudget] = useState<Budget | null>(null);
@@ -46,7 +45,7 @@ const BudgetsPage: React.FC = () => {
           .eq('month', selectedMonth),
         supabase
           .from('expenses')
-          .select('category, amount, expense_date')
+          .select('category, amount, expense_date') 
           .eq('user_id', user.id)
           .gte('expense_date', budgetMonthStart) 
           .lte('expense_date', budgetMonthEnd)
@@ -80,8 +79,8 @@ const BudgetsPage: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const handleBudgetSaved = (savedBudget: Budget) => {
-    fetchBudgetsAndExpenses(); // Re-fetch to update list
+  const handleBudgetSaved = (_savedBudget: Budget) => { // Parameter can be ignored if not used
+    fetchBudgetsAndExpenses(); 
     showToast(editingBudget ? "Budget updated successfully!" : "Budget added successfully!", "success");
     handleCloseModal();
   };
@@ -90,7 +89,7 @@ const BudgetsPage: React.FC = () => {
     try {
       const { error } = await supabase.from('budgets').delete().eq('id', budgetId);
       if (error) throw error;
-      fetchBudgetsAndExpenses(); // Re-fetch
+      fetchBudgetsAndExpenses(); 
       showToast("Budget deleted successfully!", "success");
     } catch (error: any) {
       showToast("Failed to delete budget.", "error");
@@ -98,7 +97,7 @@ const BudgetsPage: React.FC = () => {
     }
   };
   
-  const years = Array.from({ length: 10 }, (_, i) => getYear(nowInIST) - 5 + i).sort((a,b) => b-a); // Last 5 and next 4 years
+  const years = Array.from({ length: 10 }, (_, i) => getYear(nowInIST) - 5 + i).sort((a,b) => b-a); 
   const months = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: format(new Date(2000, i, 1), 'MMMM') }));
 
   return (
@@ -150,8 +149,8 @@ const BudgetsPage: React.FC = () => {
             existingBudget={editingBudget} 
             onBudgetSaved={handleBudgetSaved} 
             onFormCancel={handleCloseModal}
-            currentYear={selectedYear} // Pass current selection for defaults
-            currentMonth={selectedMonth} // Pass current selection for defaults
+            currentYear={selectedYear} 
+            currentMonth={selectedMonth} 
           />
         </Modal>
       )}

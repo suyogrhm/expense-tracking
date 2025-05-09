@@ -1,8 +1,7 @@
 import React from 'react';
 import type { Budget, Expense } from '../../types';
-import { Edit3, Trash2, AlertTriangle } from 'lucide-react';
+import { Edit3, Trash2 } from 'lucide-react';
 import Button from '../ui/Button';
-import { formatInTimeZone } from 'date-fns-tz'; // For displaying budget period if needed
 
 interface BudgetListProps {
   budgets: Budget[];
@@ -12,7 +11,6 @@ interface BudgetListProps {
 }
 
 const BudgetList: React.FC<BudgetListProps> = ({ budgets, expenses, onEdit, onDelete }) => {
-  const timeZone = 'Asia/Kolkata';
 
   const getSpentAmountForBudget = (budget: Budget): number => {
     let relevantExpenses = expenses;

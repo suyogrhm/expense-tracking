@@ -25,7 +25,7 @@ const DashboardPage: React.FC = () => {
   const { showToast } = useToast();
 
   // Memoize date calculations to prevent them from changing on every render
-  const { now, currentMonth, currentYearVal, monthStartISO, monthEndISO, currentMonthNameFormatted } = useMemo(() => {
+  const { currentMonth, currentYearVal, monthStartISO, monthEndISO, currentMonthNameFormatted } = useMemo(() => {
     const n = toZonedTime(new Date(), TIME_ZONE);
     const cMonth = getMonth(n) + 1;
     const cYear = getYear(n);

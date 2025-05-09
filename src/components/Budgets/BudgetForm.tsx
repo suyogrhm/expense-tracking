@@ -2,12 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Budget } from '../../types';
-import { format, getYear, getMonth } from 'date-fns';
+import { format, getYear } from 'date-fns';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import SelectUI from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
-import { IndianRupee, Tag, Calendar } from 'lucide-react';
+import { Tag, Calendar } from 'lucide-react';
 
 // Re-using mainCategories from ExpenseForm for consistency, or define separately if they diverge
 const mainCategoriesForBudget = [
