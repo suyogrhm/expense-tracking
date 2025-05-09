@@ -1,3 +1,4 @@
+// src/components/Budgets/BudgetForm.tsx 
 import React, { useState, useEffect } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
@@ -9,9 +10,8 @@ import SelectUI from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
 import { Tag, Calendar } from 'lucide-react';
 
-// Re-using mainCategories from ExpenseForm for consistency, or define separately if they diverge
 const mainCategoriesForBudget = [
-  { value: '', label: 'Overall Budget (All Categories)' }, // Option for overall budget
+  // Removed the duplicate "Overall Budget" entry from here
   { value: 'Bills', label: 'Bills' },
   { value: 'Petrol', label: 'Petrol' },
   { value: 'Food', label: 'Food' },
@@ -26,8 +26,8 @@ interface BudgetFormProps {
   existingBudget: Budget | null;
   onBudgetSaved: (budget: Budget) => void;
   onFormCancel?: () => void;
-  currentYear: number; // To prefill year
-  currentMonth: number; // To prefill month
+  currentYear: number; 
+  currentMonth: number; 
 }
 
 const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, onFormCancel, currentYear, currentMonth }) => {
@@ -35,7 +35,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
   const { showToast } = useToast();
 
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<string | null>(null); // Can be null for overall
+  const [category, setCategory] = useState<string | null>(null); 
   const [year, setYear] = useState<number>(currentYear);
   const [month, setMonth] = useState<number>(currentMonth);
   const [description, setDescription] = useState('');
@@ -44,16 +44,15 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
   useEffect(() => {
     if (existingBudget) {
       setAmount(existingBudget.amount.toString());
-      setCategory(existingBudget.category || null); // Set to null if it's an overall budget
+      setCategory(existingBudget.category || null); 
       setYear(existingBudget.year);
       setMonth(existingBudget.month);
       setDescription(existingBudget.description || '');
     } else {
-      // Prefill for new budget
       setYear(currentYear);
       setMonth(currentMonth);
       setAmount('');
-      setCategory(null);
+      setCategory(null); // Default to overall budget
       setDescription('');
     }
   }, [existingBudget, currentYear, currentMonth]);
@@ -69,7 +68,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
     const budgetData = {
       user_id: user.id,
       amount: parseFloat(amount),
-      category: category || null, // Store null if category is empty (overall budget)
+      category: category || null, 
       year: parseInt(year.toString(), 10),
       month: parseInt(month.toString(), 10),
       description: description.trim() || null,
@@ -99,17 +98,16 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
       }
 
       if (error) {
-        if (error.code === '23505') { // Unique constraint violation
+        if (error.code === '23505') { 
             showToast("A budget for this category/period already exists.", "error");
         } else {
             throw error;
         }
       } else if (data) {
         onBudgetSaved(data as Budget);
-         if (!existingBudget) { // Reset only if it was a new entry
+         if (!existingBudget) { 
             setAmount('');
             setCategory(null);
-            // Keep year/month as they might want to add another for same period
             setDescription('');
         }
       }
@@ -135,7 +133,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
             value={month.toString()}
             onChange={(e) => setMonth(parseInt(e.target.value))}
             options={monthOptions}
-            icon={<Calendar size={18} className="text-gray-400" />}
+            icon={<Calendar size={18} className="text-gray-400 dark:text-gray-500" />}
             required
         />
         <SelectUI
@@ -144,7 +142,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
             value={year.toString()}
             onChange={(e) => setYear(parseInt(e.target.value))}
             options={yearOptions}
-            icon={<Calendar size={18} className="text-gray-400" />}
+            icon={<Calendar size={18} className="text-gray-400 dark:text-gray-500" />}
             required
         />
       </div>
@@ -154,7 +152,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
         label="Budget Amount"
         value={amount}
         onChange={(e) => setAmount(e.target.value)}
-        icon={<span className="text-gray-400 font-semibold">₹</span>}
+        icon={<span className="text-gray-400 dark:text-gray-500 font-semibold">₹</span>}
         placeholder="0.00"
         step="0.01"
         min="0.01"
@@ -163,11 +161,11 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
       <SelectUI
         id="budgetCategory"
         label="Category (Optional)"
-        value={category || ''} // Handle null for overall
-        onChange={(e) => setCategory(e.target.value || null)} // Set to null if empty string
-        options={mainCategoriesForBudget}
-        prompt="Overall Budget (All Categories)"
-        icon={<Tag size={18} className="text-gray-400" />}
+        value={category || ''} 
+        onChange={(e) => setCategory(e.target.value || null)} 
+        options={mainCategoriesForBudget} // Use the corrected list
+        prompt="Overall Budget (All Categories)" // This acts as the default "Overall" option
+        icon={<Tag size={18} className="text-gray-400 dark:text-gray-500" />}
       />
       <Input
         id="budgetDescription"

@@ -14,13 +14,13 @@ const IncomeTable: React.FC<IncomeTableProps> = ({ incomes, onEdit, onDelete }) 
   const timeZone = 'Asia/Kolkata';
 
   if (!incomes || incomes.length === 0) {
-    return <p className="text-center text-gray-500 py-4">No income records to display.</p>;
+    return <p className="text-center text-gray-500 dark:text-dark-text-secondary py-4">No income records to display.</p>;
   }
 
   return (
-    <div className="overflow-x-auto bg-white rounded-lg shadow">
-      <table className="w-full min-w-max text-sm text-left text-gray-700">
-        <thead className="text-xs text-gray-700 uppercase bg-gray-100 border-b">
+    <div className="overflow-x-auto bg-white dark:bg-dark-card rounded-lg shadow">
+      <table className="w-full min-w-max text-sm text-left text-gray-700 dark:text-dark-text">
+        <thead className="text-xs text-gray-700 dark:text-dark-text-secondary uppercase table-header-bg border-b border-color">
           <tr>
             <th scope="col" className="px-4 sm:px-6 py-3">Date</th>
             <th scope="col" className="px-4 sm:px-6 py-3">Source</th>
@@ -31,12 +31,12 @@ const IncomeTable: React.FC<IncomeTableProps> = ({ incomes, onEdit, onDelete }) 
         </thead>
         <tbody>
           {incomes.map((income) => (
-            <tr key={income.id} className="bg-white border-b hover:bg-gray-50 transition-colors">
+            <tr key={income.id} className="bg-white dark:bg-dark-card border-b border-color table-row-hover transition-colors">
               <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
                 {formatInTimeZone(new Date(income.income_date), timeZone, 'dd MMM yy, hh:mm a')}
               </td>
               <td className="px-4 sm:px-6 py-4">{income.source}</td>
-              <td className="px-4 sm:px-6 py-4 text-right font-medium text-green-600">
+              <td className="px-4 sm:px-6 py-4 text-right font-medium text-green-600 dark:text-green-400">
                 {income.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </td>
               <td className="px-4 sm:px-6 py-4 max-w-xs truncate hidden md:table-cell" title={income.description || undefined}>
@@ -45,10 +45,10 @@ const IncomeTable: React.FC<IncomeTableProps> = ({ incomes, onEdit, onDelete }) 
               <td className="px-4 sm:px-6 py-4 text-center">
                 <div className="flex items-center justify-center space-x-1 sm:space-x-2">
                   <Button variant="icon" size="sm" onClick={() => onEdit(income)} aria-label="Edit Income">
-                    <Edit3 size={16} className="text-blue-600 hover:text-blue-800" />
+                    <Edit3 size={16} className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300" />
                   </Button>
                   <Button variant="icon" size="sm" onClick={() => onDelete(income.id)} aria-label="Delete Income">
-                    <Trash2 size={16} className="text-red-500 hover:text-red-700" />
+                    <Trash2 size={16} className="text-red-500 dark:text-red-400 hover:text-red-700 dark:hover:text-red-300" />
                   </Button>
                 </div>
               </td>
