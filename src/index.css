@@ -1,82 +1,91 @@
-    @tailwind base;
-    @tailwind components;
-    @tailwind utilities;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-    body {
-      @apply font-body antialiased bg-gray-100 text-gray-900 dark:bg-dark-background dark:text-dark-text transition-colors duration-300;
-    }
+body {
+  @apply font-body antialiased bg-gray-100 text-gray-900 dark:bg-dark-background dark:text-dark-text transition-colors duration-300;
+}
 
-    /* Define a general card style that can be applied */
-    .content-card {
-      @apply bg-white shadow rounded-lg p-6 dark:bg-dark-card dark:border dark:border-dark-border;
-    }
+/* Define a general card style that can be applied */
+.content-card {
+  @apply bg-white shadow rounded-lg p-6 dark:bg-dark-card dark:border dark:border-dark-border;
+}
 
-    .table-header-bg {
-      @apply bg-gray-100 dark:bg-gray-700;
-    }
+.table-header-bg {
+  @apply bg-gray-100 dark:bg-gray-700;
+}
 
-    .table-row-hover {
-      @apply hover:bg-gray-50 dark:hover:bg-gray-700;
-    }
+.table-row-hover {
+  @apply hover:bg-gray-50 dark:hover:bg-gray-700;
+}
 
-    .table-border-color {
-      @apply border-gray-200 dark:border-dark-border;
-    }
+.table-border-color {
+  @apply border-gray-200 dark:border-dark-border;
+}
 
-    .input-bg-color {
-      @apply bg-white dark:bg-dark-input;
-    }
+.input-bg-color {
+  @apply bg-white dark:bg-dark-input;
+}
 
-    .input-border-color {
-      @apply border-gray-300 dark:border-dark-border;
-    }
+.input-border-color {
+  @apply border-gray-300 dark:border-dark-border;
+}
 
-    .input-text-color {
-      @apply text-gray-900 dark:text-dark-text;
-    }
+.input-text-color {
+  @apply text-gray-900 dark:text-dark-text;
+}
 
-    .placeholder-color::placeholder {
-      @apply text-gray-400 dark:text-gray-500;
-    }
+.placeholder-color::placeholder {
+  @apply text-gray-400 dark:text-gray-500;
+}
 
-    /* Hide number input spinners */
-    input[type=number]::-webkit-outer-spin-button,
-    input[type=number]::-webkit-inner-spin-button {
-      -webkit-appearance: none;
-      margin: 0;
-    }
+/* Hide number input spinners */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
 
-    input[type=number] {
-      -moz-appearance: textfield;
-      /* Firefox */
-    }
+input[type=number] {
+  -moz-appearance: textfield;
+  /* Firefox */
+}
 
-    @keyframes fadeIn {
-      from {
-        opacity: 0;
-      }
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
 
-      to {
-        opacity: 1;
-      }
-    }
+  to {
+    opacity: 1;
+  }
+}
 
-    @keyframes scaleUp {
-      from {
-        transform: scale(0.95);
-        opacity: 0;
-      }
+@keyframes scaleUp {
+  from {
+    transform: scale(0.95);
+    opacity: 0;
+  }
 
-      to {
-        transform: scale(1);
-        opacity: 1;
-      }
-    }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
 
-    .animate-fadeIn {
-      animation: fadeIn 0.3s ease-out forwards;
-    }
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out forwards;
+}
 
-    .animate-scaleUp {
-      animation: scaleUp 0.3s ease-out forwards;
-    }
+.animate-scaleUp {
+  animation: scaleUp 0.3s ease-out forwards;
+}
+
+.right-2 {
+  right: 2rem;
+}
+
+html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+  filter: invert(1) brightness(0.7);
+  /* Example: Invert and adjust brightness for dark mode */
+}
