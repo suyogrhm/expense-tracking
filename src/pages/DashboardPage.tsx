@@ -11,7 +11,7 @@ import { PlusCircle, Loader2, Download, TrendingUp, TrendingDown, PiggyBank, Che
 import Button from '../components/ui/Button';
 import { exportToPdf } from '../utils/exportUtils'; 
 import { Link } from 'react-router-dom';
-import classNames from 'classnames'; // For conditional classes
+import classNames from 'classnames'; 
 
 const TIME_ZONE = 'Asia/Kolkata'; 
 
@@ -43,14 +43,14 @@ const DashboardPage: React.FC = () => {
       const [expensesRes, incomeRes, budgetsRes] = await Promise.all([
         supabase
           .from('expenses')
-          .select('*')
+          .select('*, tags(id, name)') // Fetch related tags
           .eq('user_id', user.id)
           .gte('expense_date', monthStartISO)
           .lte('expense_date', monthEndISO)
           .order('expense_date', { ascending: false }),
         supabase 
           .from('incomes')
-          .select('*')
+          .select('*, tags(id, name)') // Fetch related tags for income too
           .eq('user_id', user.id)
           .gte('income_date', monthStartISO)
           .lte('income_date', monthEndISO)
@@ -64,10 +64,11 @@ const DashboardPage: React.FC = () => {
       ]);
 
       if (expensesRes.error) throw expensesRes.error;
-      setCurrentMonthExpenses(expensesRes.data as Expense[] || []);
+      setCurrentMonthExpenses((expensesRes.data || []).map(exp => ({...exp, tags: exp.tags || []})) as Expense[]);
+
 
       if (incomeRes.error) throw incomeRes.error;
-      setCurrentMonthIncome(incomeRes.data as Income[] || []);
+      setCurrentMonthIncome((incomeRes.data || []).map(inc => ({...inc, tags: inc.tags || []})) as Income[]);
       
       if (budgetsRes.error) throw budgetsRes.error;
       setCurrentBudgets(budgetsRes.data as Budget[] || []);
@@ -131,17 +132,16 @@ const DashboardPage: React.FC = () => {
             {isExpenseFormVisible ? 'Close Expense Form' : 'Add New Expense'}
             </Button>
         </div>
-        {/* Expense Form - Rendered INSIDE the first card, with transition */}
         <div
           className={classNames(
             "overflow-hidden transition-all duration-500 ease-in-out",
             {
-              "max-h-[1000px] opacity-100 mt-6 border-t border-color pt-6": isExpenseFormVisible, // Arbitrary large max-h for expansion
+              "max-h-[1000px] opacity-100 mt-6 border-t border-color pt-6": isExpenseFormVisible, 
               "max-h-0 opacity-0": !isExpenseFormVisible,
             }
           )}
         >
-          {isExpenseFormVisible && ( // Conditionally render to mount/unmount for state reset
+          {isExpenseFormVisible && ( 
              <ExpenseForm 
                 onExpenseAdded={handleExpenseAdded} 
                 existingExpense={null} 
