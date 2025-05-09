@@ -1,7 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Expense, Category, SubCategory } from '../../types';
+import type { Expense, Category as PresetCategory, SubCategory as PresetSubCategory, UserDefinedCategory, UserDefinedSubCategory as UserDefinedSubCategoryType } from '../../types'; // Added UserDefinedSubCategoryType
+ // Added UserDefinedSubCategoryType
 import { format, parse } from 'date-fns'; 
 import { toZonedTime, formatInTimeZone } from 'date-fns-tz'; 
 import Input from '../ui/Input';
@@ -16,16 +17,15 @@ interface ExpenseFormProps {
   onFormCancel?: () => void; 
 }
 
-const mainCategories: Category[] = [
+const presetMainCategories: PresetCategory[] = [
   { id: 'bills', name: 'Bills' },
   { id: 'petrol', name: 'Petrol' },
   { id: 'food', name: 'Food' },
   { id: 'groceries', name: 'Groceries' },
   { id: 'online_shopping', name: 'Online Shopping' },
-  { id: 'other', name: 'Other (Custom)' },
 ];
 
-const subCategories: Record<string, SubCategory[]> = {
+const presetSubCategories: Record<string, PresetSubCategory[]> = {
   bills: [
     { id: 'electricity', name: 'Electricity' },
     { id: 'water', name: 'Water' },
@@ -63,73 +63,126 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
   const { showToast } = useToast();
   const timeZone = 'Asia/Kolkata';
 
-  const getInitialDateTime = () => {
-    const nowInIST = toZonedTime(new Date(), timeZone);
-    return format(nowInIST, "yyyy-MM-dd'T'HH:mm");
-  };
-
   const [amount, setAmount] = useState<string>('');
-  const [category, setCategory] = useState<string>('');
-  const [subCategoryState, setSubCategoryState] = useState<string>(''); 
-  const [customCategory, setCustomCategory] = useState<string>('');
-  const [expenseDate, setExpenseDate] = useState<string>(getInitialDateTime());
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string>(''); 
+  const [subCategoryName, setSubCategoryName] = useState<string>(''); 
+  const [customCategoryInput, setCustomCategoryInput] = useState<string>(''); 
+  const [expenseDate, setExpenseDate] = useState<string>(() => format(toZonedTime(new Date(), timeZone), "yyyy-MM-dd'T'HH:mm"));
   const [description, setDescription] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
-  const [availableSubCategories, setAvailableSubCategories] = useState<SubCategory[]>([]);
   
+  const [userDefinedExpenseCategories, setUserDefinedExpenseCategories] = useState<UserDefinedCategory[]>([]);
+  const [availableSubCategories, setAvailableSubCategories] = useState<{id: string, name: string}[]>([]);
+  const [isCustomCategoryMode, setIsCustomCategoryMode] = useState(false);
+
+  useEffect(() => {
+    const fetchUserCategories = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('user_defined_categories')
+        .select('*, user_defined_sub_categories!main_category_id_fk(*)')
+        .eq('user_id', user.id)
+        .eq('type', 'expense')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error("Error fetching user expense categories:", error);
+        showToast("Could not load your custom categories.", "error");
+      } else {
+        setUserDefinedExpenseCategories((data || []).map(cat => ({
+            ...cat,
+            // Ensure user_defined_sub_categories is always an array
+            user_defined_sub_categories: Array.isArray(cat.user_defined_sub_categories) 
+                                          ? cat.user_defined_sub_categories 
+                                          : [] 
+        })));
+      }
+    };
+    fetchUserCategories();
+  }, [user, showToast]);
+
+  const allCategoryOptions = useMemo(() => {
+    const options = presetMainCategories.map(c => ({ value: c.name, label: c.name }));
+    userDefinedExpenseCategories.forEach(udc => {
+      if (!options.find(opt => opt.value === udc.name)) { 
+        options.push({ value: udc.name, label: udc.name });
+      }
+    });
+    options.push({ value: '---OTHER---', label: 'Other (Type a new one)' }); 
+    return options.sort((a,b) => a.label.localeCompare(b.label));
+  }, [userDefinedExpenseCategories]);
+
   useEffect(() => {
     if (existingExpense) {
       setAmount(existingExpense.amount.toString());
       setExpenseDate(formatInTimeZone(new Date(existingExpense.expense_date), timeZone, "yyyy-MM-dd'T'HH:mm"));
       
-      const mainCatMatch = mainCategories.find(mc => mc.name === existingExpense.category);
-      if (mainCatMatch && mainCatMatch.id !== 'other') {
-        setCategory(mainCatMatch.name);
-        setCustomCategory('');
-        const subs = subCategories[mainCatMatch.id] || [];
-        setAvailableSubCategories(subs);
-        const subCatMatch = subs.find(sc => sc.name === existingExpense.sub_category);
-        setSubCategoryState(subCatMatch ? subCatMatch.name : (existingExpense.sub_category || ''));
-      } else {
-        setCategory('Other (Custom)');
-        setCustomCategory(existingExpense.category); 
-        setAvailableSubCategories([]);
-        setSubCategoryState(existingExpense.sub_category || ''); 
+      const isPreset = presetMainCategories.some(pc => pc.name === existingExpense.category);
+      const isUserDefined = userDefinedExpenseCategories.some(udc => udc.name === existingExpense.category);
+
+      if (isPreset || isUserDefined) {
+        setSelectedCategoryName(existingExpense.category);
+        setIsCustomCategoryMode(false);
+        setCustomCategoryInput('');
+      } else { 
+        setSelectedCategoryName('---OTHER---');
+        setIsCustomCategoryMode(true);
+        setCustomCategoryInput(existingExpense.category);
       }
+      setSubCategoryName(existingExpense.sub_category || '');
       setDescription(existingExpense.description || '');
     } else {
       setAmount('');
-      setCategory('');
-      setSubCategoryState('');
-      setCustomCategory('');
-      setExpenseDate(getInitialDateTime());
+      setSelectedCategoryName('');
+      setSubCategoryName('');
+      setCustomCategoryInput('');
+      setIsCustomCategoryMode(false);
+      setExpenseDate(format(toZonedTime(new Date(), timeZone), "yyyy-MM-dd'T'HH:mm"));
       setDescription('');
-      setAvailableSubCategories([]);
     }
-  }, [existingExpense, timeZone]);
+  }, [existingExpense, timeZone, userDefinedExpenseCategories]);
 
   useEffect(() => {
-    const selectedMainCategory = mainCategories.find(c => c.name === category);
-    if (selectedMainCategory && selectedMainCategory.id !== 'other') {
-      setAvailableSubCategories(subCategories[selectedMainCategory.id] || []);
-      setCustomCategory(''); 
-    } else if (selectedMainCategory && selectedMainCategory.id === 'other') {
-      setAvailableSubCategories([]); 
-    } else { 
+    if (!selectedCategoryName || selectedCategoryName === '---OTHER---') {
       setAvailableSubCategories([]);
+      return;
     }
-  }, [category]);
+
+    const presetMatch = presetMainCategories.find(c => c.name === selectedCategoryName);
+    if (presetMatch && presetSubCategories[presetMatch.id]) {
+      setAvailableSubCategories(presetSubCategories[presetMatch.id]);
+      return;
+    }
+
+    const userDefinedMatch = userDefinedExpenseCategories.find(udc => udc.name === selectedCategoryName);
+    // Ensure user_defined_sub_categories is an array before mapping
+    if (userDefinedMatch && Array.isArray(userDefinedMatch.user_defined_sub_categories)) {
+      setAvailableSubCategories(userDefinedMatch.user_defined_sub_categories.map((sub: UserDefinedSubCategoryType) => ({id: sub.id, name: sub.name})));
+      return;
+    }
+    
+    setAvailableSubCategories([]); 
+  }, [selectedCategoryName, userDefinedExpenseCategories]);
 
 
   const handleCategoryChange = (value: string) => {
-    setCategory(value);
-    setSubCategoryState(''); 
+    if (value === '---OTHER---') {
+      setIsCustomCategoryMode(true);
+      setSelectedCategoryName(value); 
+      setCustomCategoryInput(''); 
+    } else {
+      setIsCustomCategoryMode(false);
+      setSelectedCategoryName(value);
+      setCustomCategoryInput(''); 
+    }
+    setSubCategoryName(''); 
   };
   
   const deselectCategory = () => {
-    setCategory('');
-    setSubCategoryState('');
-    setCustomCategory('');
+    setSelectedCategoryName('');
+    setSubCategoryName('');
+    setCustomCategoryInput('');
+    setIsCustomCategoryMode(false);
     setAvailableSubCategories([]);
   };
 
@@ -143,18 +196,20 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
       showToast("Please fill amount and date.", "error");
       return;
     }
-    if (category !== 'Other (Custom)' && !category) {
-         showToast("Please select a category.", "error");
-         return;
-    }
-    if (category === 'Other (Custom)' && !customCategory.trim()) {
-      showToast("Please enter your custom category name.", "error");
-      return;
+    
+    let finalCategoryToSave = selectedCategoryName;
+    if (isCustomCategoryMode) {
+        if (!customCategoryInput.trim()) {
+            showToast("Please enter your custom category name.", "error");
+            return;
+        }
+        finalCategoryToSave = customCategoryInput.trim();
+    } else if (!selectedCategoryName) {
+        showToast("Please select a category or choose 'Other'.", "error");
+        return;
     }
 
     setIsLoading(true);
-
-    const finalCategoryName = category === 'Other (Custom)' ? customCategory.trim() : category;
     
     const localDate = parse(expenseDate, "yyyy-MM-dd'T'HH:mm", new Date());
     const utcDateString = localDate.toISOString(); 
@@ -162,8 +217,8 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
     const expenseData: Omit<Expense, 'id' | 'created_at'> = { 
       user_id: user.id,
       amount: parseFloat(amount),
-      category: finalCategoryName,
-      sub_category: subCategoryState || null, 
+      category: finalCategoryToSave,
+      sub_category: subCategoryName || null, 
       description: description.trim() || null,
       expense_date: utcDateString, 
     };
@@ -196,11 +251,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
         onExpenseAdded(data as Expense); 
         if (!existingExpense) { 
             setAmount('');
-            setCategory('');
-            setSubCategoryState('');
-            setCustomCategory('');
+            setSelectedCategoryName('');
+            setSubCategoryName('');
+            setCustomCategoryInput('');
+            setIsCustomCategoryMode(false);
             setDescription('');
-            setExpenseDate(getInitialDateTime());
+            setExpenseDate(format(toZonedTime(new Date(), timeZone), "yyyy-MM-dd'T'HH:mm"));
         }
       }
     } catch (error: any) {
@@ -213,7 +269,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
   
   return (
     <form onSubmit={handleSubmit} className="space-y-6 p-1">
-      <h3 className="text-xl font-semibold text-gray-700 mb-4 border-b pb-2">
+      <h3 className="text-xl font-semibold text-gray-700 dark:text-dark-text mb-4 border-b border-color pb-2">
         {existingExpense ? 'Edit Expense' : 'Add New Expense'}
       </h3>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -223,7 +279,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
           label="Date & Time"
           value={expenseDate}
           onChange={(e) => setExpenseDate(e.target.value)}
-          icon={<Calendar size={18} className="text-gray-400" />}
+          icon={<Calendar size={18} className="text-gray-400 dark:text-gray-500" />}
           required
         />
         <Input
@@ -232,7 +288,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
           label="Amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          icon={<span className="text-gray-400 font-semibold">₹</span>}
+          icon={<span className="text-gray-400 dark:text-gray-500 font-semibold">₹</span>}
           placeholder="0.00"
           step="0.01"
           required
@@ -244,19 +300,20 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
         <SelectUI
           id="category"
           label="Category"
-          value={category}
+          value={selectedCategoryName}
           onChange={(e) => handleCategoryChange(e.target.value)}
-          options={mainCategories.map(c => ({ value: c.name, label: c.name }))}
-          prompt="Select a category or type custom below"
-          icon={<Tag size={18} className="text-gray-400" />}
+          options={allCategoryOptions}
+          prompt="Select a category"
+          icon={<Tag size={18} className="text-gray-400 dark:text-gray-500" />}
+          required={!isCustomCategoryMode}
         />
-        {category && (
+        {selectedCategoryName && (
             <Button 
                 type="button" 
                 onClick={deselectCategory} 
                 variant="ghost" 
                 size="icon" 
-                className="absolute top-7 right-2 p-1 text-gray-400 hover:text-gray-600"
+                className="absolute top-7 right-2 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
                 aria-label="Deselect category"
             >
                 <X size={16} />
@@ -264,37 +321,37 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
         )}
       </div>
 
-      {category === 'Other (Custom)' && (
+      {isCustomCategoryMode && (
         <Input
-          id="customCategory"
+          id="customCategoryInput"
           type="text"
-          label="Custom Category Name"
-          value={customCategory}
-          onChange={(e) => setCustomCategory(e.target.value)}
-          placeholder="e.g., Movie Tickets, Gifts"
-          required={category === 'Other (Custom)'} 
+          label="New Category Name"
+          value={customCategoryInput}
+          onChange={(e) => setCustomCategoryInput(e.target.value)}
+          placeholder="Type your new category name"
+          required
         />
       )}
       
-      {category && category !== 'Other (Custom)' && availableSubCategories.length > 0 && (
+      {selectedCategoryName && selectedCategoryName !== '---OTHER---' && availableSubCategories.length > 0 && (
         <SelectUI
           id="subCategory"
           label="Sub-category (Optional)"
-          value={subCategoryState}
-          onChange={(e) => setSubCategoryState(e.target.value)}
+          value={subCategoryName}
+          onChange={(e) => setSubCategoryName(e.target.value)}
           options={availableSubCategories.map(sc => ({ value: sc.name, label: sc.name }))}
           prompt="Select a sub-category"
-          icon={<ChevronDown size={18} className="text-gray-400 opacity-50" />}
+          icon={<ChevronDown size={18} className="text-gray-400 dark:text-gray-500 opacity-50" />}
         />
       )}
-      {category === 'Groceries' && (
+      { (selectedCategoryName === 'Groceries' || (isCustomCategoryMode && customCategoryInput)) && (
          <Input
-            id="subCategoryGroceries"
+            id="subCategoryCustomInput"
             type="text"
-            label="Store / Item Detail (Optional)"
-            value={subCategoryState} 
-            onChange={(e) => setSubCategoryState(e.target.value)}
-            placeholder="e.g., DMart, BigBasket, Milk & Bread"
+            label="Sub-category / Item Detail (Optional)"
+            value={subCategoryName} 
+            onChange={(e) => setSubCategoryName(e.target.value)}
+            placeholder="e.g., DMart, Milk & Bread, Specific item"
         />
       )}
 
@@ -305,7 +362,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
         label="Notes / Description (Optional)"
         value={description}
         onChange={(e) => setDescription(e.target.value)}
-        placeholder={category === 'Other (Custom)' ? "Additional notes for your custom category" : "e.g., Lunch with colleagues, specific bill details"}
+        placeholder={isCustomCategoryMode ? "Additional notes for your custom category" : "e.g., Lunch with colleagues, specific bill details"}
       />
 
 

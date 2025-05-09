@@ -7,10 +7,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { format, startOfMonth, endOfMonth, getYear, getMonth } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz'; 
 import { useToast } from '../hooks/useToast';
-import { PlusCircle, Loader2, Download, TrendingUp, TrendingDown, PiggyBank } from 'lucide-react'; 
+import { PlusCircle, Loader2, Download, TrendingUp, TrendingDown, PiggyBank, ChevronUp } from 'lucide-react'; 
 import Button from '../components/ui/Button';
 import { exportToPdf } from '../utils/exportUtils'; 
 import { Link } from 'react-router-dom';
+import classNames from 'classnames'; // For conditional classes
 
 const TIME_ZONE = 'Asia/Kolkata'; 
 
@@ -85,7 +86,7 @@ const DashboardPage: React.FC = () => {
 
   const handleExpenseAdded = (_newExpense: Expense) => {
     fetchData(); 
-    setIsExpenseFormVisible(false); 
+    // setIsExpenseFormVisible(false); // Keep form open or close based on preference
     showToast("Expense added successfully!", "success");
   };
 
@@ -119,15 +120,35 @@ const DashboardPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="content-card flex flex-col sm:flex-row justify-between items-center gap-4"> {/* Applied .content-card */}
-        <div>
-            <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Dashboard</h1>
-            <p className="text-gray-600 dark:text-dark-text-secondary">Overview for {currentMonthNameFormatted.split(' ')[0]}.</p>
+      <div className="content-card"> 
+        <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Dashboard</h1>
+                <p className="text-gray-600 dark:text-dark-text-secondary">Overview for {currentMonthNameFormatted.split(' ')[0]}.</p>
+            </div>
+            <Button onClick={() => setIsExpenseFormVisible(!isExpenseFormVisible)} variant="primary" size="lg" className="w-full sm:w-auto">
+            {isExpenseFormVisible ? <ChevronUp size={20} className="mr-2"/> : <PlusCircle size={20} className="mr-2" />}
+            {isExpenseFormVisible ? 'Close Expense Form' : 'Add New Expense'}
+            </Button>
         </div>
-        <Button onClick={() => setIsExpenseFormVisible(!isExpenseFormVisible)} variant="primary" size="lg">
-          <PlusCircle size={20} className="mr-2" />
-          {isExpenseFormVisible ? 'Close Expense Form' : 'Add New Expense'}
-        </Button>
+        {/* Expense Form - Rendered INSIDE the first card, with transition */}
+        <div
+          className={classNames(
+            "overflow-hidden transition-all duration-500 ease-in-out",
+            {
+              "max-h-[1000px] opacity-100 mt-6 border-t border-color pt-6": isExpenseFormVisible, // Arbitrary large max-h for expansion
+              "max-h-0 opacity-0": !isExpenseFormVisible,
+            }
+          )}
+        >
+          {isExpenseFormVisible && ( // Conditionally render to mount/unmount for state reset
+             <ExpenseForm 
+                onExpenseAdded={handleExpenseAdded} 
+                existingExpense={null} 
+                onFormCancel={() => setIsExpenseFormVisible(false)}
+            />
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -137,7 +158,7 @@ const DashboardPage: React.FC = () => {
       </div>
       
       {overallBudget && (
-        <div className="content-card"> {/* Applied .content-card */}
+        <div className="content-card"> 
           <h3 className="text-xl font-semibold text-gray-700 dark:text-dark-text mb-3">Overall Budget for {currentMonthNameFormatted}</h3>
           <div className="flex justify-between items-center mb-1">
             <span className="text-gray-600 dark:text-dark-text-secondary">Spent: ₹{spentAgainstOverall.toLocaleString('en-IN')}</span>
@@ -162,18 +183,7 @@ const DashboardPage: React.FC = () => {
         </div>
       )}
 
-
-      {isExpenseFormVisible && (
-        <div className="content-card"> {/* Applied .content-card */}
-          <ExpenseForm 
-            onExpenseAdded={handleExpenseAdded} 
-            existingExpense={null} 
-            onFormCancel={() => setIsExpenseFormVisible(false)}
-          />
-        </div>
-      )}
-
-      <div className="content-card"> {/* Applied .content-card */}
+      <div className="content-card"> 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
             <div>
                 <h2 className="text-2xl font-semibold text-gray-700 dark:text-dark-text">Recent Expenses</h2>
@@ -213,7 +223,6 @@ interface SummaryCardProps {
     color: string;
 }
 const SummaryCard: React.FC<SummaryCardProps> = ({ title, amount, icon, color }) => (
-    // Applied .content-card for consistent dark mode styling
     <div className="content-card flex items-center space-x-4"> 
         <div className={`p-3 rounded-full bg-opacity-20 ${color.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-')}`}>
              {icon}

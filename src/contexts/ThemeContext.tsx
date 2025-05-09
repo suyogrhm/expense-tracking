@@ -15,7 +15,6 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     if (storedTheme) {
       return storedTheme;
     }
-    // Fallback to system preference if no theme is stored
     return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches 
       ? 'dark' 
       : 'light';
@@ -32,8 +31,6 @@ export const ThemeProvider: React.FC<{ children: ReactNode }> = ({ children }) =
     setTheme((prevTheme) => (prevTheme === 'light' ? 'dark' : 'light'));
   };
   
-  // Memoize the context value to prevent unnecessary re-renders of consumers
-  // when the provider itself re-renders but the value hasn't changed.
   const value = useMemo(() => ({ theme, toggleTheme }), [theme]);
 
   return (
