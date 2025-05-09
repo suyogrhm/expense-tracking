@@ -1,23 +1,24 @@
-import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import type { Session, User } from '@supabase/supabase-js';
+import React, { createContext, useContext, useState, useEffect, type ReactNode } from 'react'; 
+import type { Session, User, AuthError, SignUpWithPasswordCredentials } from '@supabase/supabase-js'; // Added AuthError, SignUpWithPasswordCredentials
 import { supabase } from '../supabaseClient';
 import { useNavigate } from 'react-router-dom';
+import type { UserMetadata } from '../types'; // Import UserMetadata
+ // Import UserMetadata
 
 interface AuthContextType {
-  user: User | null;
+  user: User & { user_metadata: UserMetadata } | null; // Adjusted User type
   session: Session | null;
   isLoading: boolean;
-  login: (email: string, pass: string) => Promise<any>; // Replace 'any' with specific Supabase types
-  register: (email: string, pass: string) => Promise<any>;
+  login: (email: string, pass: string) => Promise<{ user: User; session: Session; error: null; } | { user: null; session: null; error: AuthError; }>; 
+  register: (credentials: SignUpWithPasswordCredentials & {data?: Record<string,any>}) => Promise<{ user: User; session: Session; error: null; } | { user: null; session: null; error: AuthError; }>; // Updated register signature
   logout: () => Promise<void>;
   forgotPassword: (email: string) => Promise<any>;
-  // Add more auth methods as needed
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User & { user_metadata: UserMetadata } | null>(null); // Adjusted User type
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const navigate = useNavigate();
@@ -26,16 +27,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
-      setUser(session?.user ?? null);
+      setUser(session?.user as User & { user_metadata: UserMetadata } ?? null); // Cast user
       setIsLoading(false);
     });
 
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setSession(session);
-        setUser(session?.user ?? null);
+        setUser(session?.user as User & { user_metadata: UserMetadata } ?? null); // Cast user
         setIsLoading(false);
-        if (!session && _event !== 'INITIAL_SESSION') { // Avoid navigation on initial check if no session
+        if (!session && _event !== 'INITIAL_SESSION') { 
             navigate('/login', { replace: true });
         }
       }
@@ -50,16 +51,25 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     setIsLoading(true);
     const { data, error } = await supabase.auth.signInWithPassword({ email, password: pass });
     setIsLoading(false);
-    if (error) throw error;
-    return data;
+    if (error) {
+        console.error("Login error:", error);
+        return { user: null, session: null, error };
+    }
+    return { user: data.user as User, session: data.session as Session, error: null };
   };
 
-  const register = async (email: string, pass: string) => {
+  // Updated register function to accept options for metadata
+  const register = async (credentials: SignUpWithPasswordCredentials & {options?: {data?: Record<string,any>}}) => {
     setIsLoading(true);
-    const { data, error } = await supabase.auth.signUp({ email, password: pass });
+    const { data, error } = await supabase.auth.signUp(credentials);
     setIsLoading(false);
-    if (error) throw error;
-    return data;
+    if (error) {
+        console.error("Registration error:", error);
+        return { user: null, session: null, error };
+    }
+    // Note: data.user might be null if email confirmation is required and not yet completed.
+    // data.session might also be null.
+    return { user: data.user as User, session: data.session as Session, error: null };
   };
 
   const logout = async () => {

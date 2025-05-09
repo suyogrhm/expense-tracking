@@ -4,9 +4,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext'; 
 import { LogOut, LayoutDashboard, History, UserCircle, Wallet, Landmark, Target, Sun, Moon, Settings, ListPlus, Menu, X as CloseIcon } from 'lucide-react';
 import Button from '../ui/Button'; 
-import classNames from 'classnames';
 
-// Define interfaces first
 interface NavLinkItemProps {
   to: string;
   icon: React.ReactNode;
@@ -17,7 +15,6 @@ interface MobileNavLinkItemProps extends NavLinkItemProps {
     onClick: () => void;
 }
 
-// Define helper components next
 const NavLinkItem: React.FC<NavLinkItemProps> = ({ to, icon, label }) => (
   <NavLink 
     to={to} 
@@ -45,7 +42,6 @@ const MobileNavLinkItem: React.FC<MobileNavLinkItemProps> = ({ to, icon, label, 
   </NavLink>
 );
 
-// Main Navbar component
 const Navbar: React.FC = () => {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme(); 
@@ -53,7 +49,6 @@ const Navbar: React.FC = () => {
   const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const profileDropdownRef = useRef<HTMLDivElement>(null);
-
 
   const handleLogout = async () => {
     try {
@@ -88,6 +83,8 @@ const Navbar: React.FC = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const displayName = user?.user_metadata?.username || user?.email?.split('@')[0] || 'User';
+
 
   return (
     <nav className="bg-primary-700 text-white shadow-lg dark:bg-gray-800 sticky top-0 z-50"> 
@@ -98,7 +95,6 @@ const Navbar: React.FC = () => {
             <span>ExpenseTracker</span>
           </Link>
 
-          {/* Desktop Navigation */}
           <div className="hidden md:flex items-center space-x-1"> 
             <NavLinkItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />
             <NavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" /> 
@@ -116,11 +112,14 @@ const Navbar: React.FC = () => {
                   className="flex items-center space-x-2 px-3 py-2 rounded-md hover:bg-primary-600 dark:hover:bg-gray-700 transition-colors"
                 >
                   <UserCircle size={24} />
-                  <span className="text-sm">{user.email?.split('@')[0]}</span>
+                  <span className="text-sm">{displayName}</span>
                 </button>
                 {isProfileDropdownOpen && (
                   <div className="absolute right-0 top-full mt-1 w-56 bg-white dark:bg-dark-card rounded-md shadow-xl z-20 py-1 border border-gray-200 dark:border-dark-border"> 
-                    <span className="block px-4 py-2 text-xs text-gray-500 dark:text-dark-text-secondary truncate" title={user.email || undefined}>{user.email}</span>
+                    <div className="px-4 py-2">
+                        <p className="text-sm font-medium text-gray-900 dark:text-dark-text truncate">{displayName}</p>
+                        <p className="text-xs text-gray-500 dark:text-dark-text-secondary truncate" title={user.email || undefined}>{user.email}</p>
+                    </div>
                     <div className="border-t border-color my-1"></div>
                     <Link to="/profile" onClick={() => setIsProfileDropdownOpen(false)} className="w-full text-left text-gray-700 dark:text-dark-text hover:bg-gray-100 dark:hover:bg-gray-600 flex items-center space-x-2 px-4 py-2 text-sm">
                       <Settings size={16} />
@@ -146,7 +145,6 @@ const Navbar: React.FC = () => {
             )}
           </div>
 
-          {/* Mobile Menu Button */}
           <div className="md:hidden flex items-center">
             <Button onClick={toggleTheme} variant="ghost" size="icon" className="text-primary-100 hover:bg-primary-600 dark:text-gray-300 dark:hover:bg-gray-700 mr-2" aria-label="Toggle theme">
                 {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
@@ -164,39 +162,40 @@ const Navbar: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile Menu */}
-      <div ref={mobileMenuRef} className={classNames("md:hidden absolute top-16 inset-x-0 p-2 transition transform origin-top-right shadow-lg", { "block": isMobileMenuOpen, "hidden": !isMobileMenuOpen })} id="mobile-menu">
-        <div className="rounded-lg bg-white dark:bg-dark-card ring-1 ring-black ring-opacity-5 dark:ring-gray-700 overflow-hidden">
-          <div className="px-2 pt-2 pb-3 space-y-1">
-            <MobileNavLinkItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" onClick={() => setIsMobileMenuOpen(false)} />
-            <MobileNavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" onClick={() => setIsMobileMenuOpen(false)} />
-            <MobileNavLinkItem to="/history" icon={<History size={18} />} label="Expenses" onClick={() => setIsMobileMenuOpen(false)} />
-            <MobileNavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" onClick={() => setIsMobileMenuOpen(false)} />
-          </div>
-          {user && (
-            <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
-              <div className="flex items-center px-5">
-                <UserCircle size={32} className="flex-shrink-0 text-gray-500 dark:text-gray-400"/>
-                <div className="ml-3">
-                  <div className="text-base font-medium text-gray-800 dark:text-dark-text">{user.email?.split('@')[0]}</div>
-                  <div className="text-sm font-medium text-gray-500 dark:text-dark-text-secondary">{user.email}</div>
+      {isMobileMenuOpen && (
+        <div ref={mobileMenuRef} className="md:hidden absolute top-16 inset-x-0 p-2 transition transform origin-top-right shadow-lg" id="mobile-menu">
+          <div className="rounded-lg bg-white dark:bg-dark-card ring-1 ring-black ring-opacity-5 dark:ring-gray-700 overflow-hidden">
+            <div className="px-2 pt-2 pb-3 space-y-1">
+              <MobileNavLinkItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" onClick={() => setIsMobileMenuOpen(false)} />
+              <MobileNavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" onClick={() => setIsMobileMenuOpen(false)} />
+              <MobileNavLinkItem to="/history" icon={<History size={18} />} label="Expenses" onClick={() => setIsMobileMenuOpen(false)} />
+              <MobileNavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" onClick={() => setIsMobileMenuOpen(false)} />
+            </div>
+            {user && (
+              <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">
+                <div className="flex items-center px-5">
+                  <UserCircle size={32} className="flex-shrink-0 text-gray-500 dark:text-gray-400"/>
+                  <div className="ml-3">
+                    <div className="text-base font-medium text-gray-800 dark:text-dark-text">{displayName}</div>
+                    <div className="text-sm font-medium text-gray-500 dark:text-dark-text-secondary">{user.email}</div>
+                  </div>
+                </div>
+                <div className="mt-3 px-2 space-y-1">
+                  <MobileNavLinkItem to="/profile" icon={<Settings size={18} />} label="Profile" onClick={() => setIsMobileMenuOpen(false)} />
+                  <MobileNavLinkItem to="/settings/categories" icon={<ListPlus size={18} />} label="Manage Categories" onClick={() => setIsMobileMenuOpen(false)} />
+                  <button
+                    onClick={handleLogout}
+                    className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-dark-text hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
+                  >
+                    <LogOut size={18} />
+                    <span>Logout</span>
+                  </button>
                 </div>
               </div>
-              <div className="mt-3 px-2 space-y-1">
-                <MobileNavLinkItem to="/profile" icon={<Settings size={18} />} label="Profile" onClick={() => setIsMobileMenuOpen(false)} />
-                <MobileNavLinkItem to="/settings/categories" icon={<ListPlus size={18} />} label="Manage Categories" onClick={() => setIsMobileMenuOpen(false)} />
-                <button
-                  onClick={handleLogout}
-                  className="w-full text-left block px-3 py-2 rounded-md text-base font-medium text-gray-700 dark:text-dark-text hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center space-x-2"
-                >
-                  <LogOut size={18} />
-                  <span>Logout</span>
-                </button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
     </nav>
   );
 };

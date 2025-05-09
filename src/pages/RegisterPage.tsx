@@ -3,11 +3,12 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
-import { Mail, Lock } from 'lucide-react'; // Removed Loader2 as Button handles it
+import { Mail, Lock, User as UserIcon } from 'lucide-react'; 
 import { useToast } from '../hooks/useToast';
 
 const RegisterPage: React.FC = () => {
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState(''); // New state for username
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -18,6 +19,10 @@ const RegisterPage: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    if (!username.trim()) {
+        showToast("Username is required.", "error");
+        return;
+    }
     if (password !== confirmPassword) {
       showToast("Passwords do not match.", "error");
       return;
@@ -28,7 +33,19 @@ const RegisterPage: React.FC = () => {
     }
     setLoading(true);
     try {
-      await register(email, password);
+      // Pass username in user_metadata
+      const { error } = await register({ 
+        email, 
+        password, 
+        options: {
+          data: { 
+            username: username.trim(),
+          }
+        } 
+      });
+
+      if (error) throw error;
+
       showToast("Registration successful! Please check your email to verify.", "success");
       navigate('/login'); 
     } catch (error: any) {
@@ -41,35 +58,45 @@ const RegisterPage: React.FC = () => {
 
   return (
     <>
-      <h2 className="text-2xl font-semibold text-center text-gray-700 mb-6">Create your Account</h2>
+      <h2 className="text-2xl font-semibold text-center text-gray-700 dark:text-dark-text mb-6">Create your Account</h2>
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          id="emailReg" // Changed ID to avoid conflict with login page if rendered together in tests
+          id="usernameReg" 
+          type="text"
+          label="Username"
+          value={username}
+          onChange={(e) => setUsername(e.target.value)}
+          icon={<UserIcon size={18} className="text-gray-400 dark:text-gray-500" />}
+          placeholder="Choose a username"
+          required
+        />
+        <Input
+          id="emailReg" 
           type="email"
           label="Email Address"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
-          icon={<Mail size={18} className="text-gray-400" />}
+          icon={<Mail size={18} className="text-gray-400 dark:text-gray-500" />}
           placeholder="you@example.com"
           required
         />
         <Input
-          id="passwordReg" // Changed ID
+          id="passwordReg" 
           type="password"
           label="Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          icon={<Lock size={18} className="text-gray-400" />}
+          icon={<Lock size={18} className="text-gray-400 dark:text-gray-500" />}
           placeholder="Create a strong password (min. 6 chars)"
           required
         />
         <Input
-          id="confirmPasswordReg" // Changed ID
+          id="confirmPasswordReg" 
           type="password"
           label="Confirm Password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
-          icon={<Lock size={18} className="text-gray-400" />}
+          icon={<Lock size={18} className="text-gray-400 dark:text-gray-500" />}
           placeholder="Confirm your password"
           required
         />
@@ -77,9 +104,9 @@ const RegisterPage: React.FC = () => {
           Sign Up
         </Button>
       </form>
-      <p className="mt-6 text-center text-sm text-gray-600">
+      <p className="mt-6 text-center text-sm text-gray-600 dark:text-dark-text-secondary">
         Already have an account?{' '}
-        <Link to="/login" className="font-medium text-primary-600 hover:text-primary-500">
+        <Link to="/login" className="font-medium text-primary-600 dark:text-dark-primary hover:text-primary-500 dark:hover:text-primary-400">
           Sign in
         </Link>
       </p>
