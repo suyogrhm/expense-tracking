@@ -79,7 +79,7 @@ const BudgetsPage: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const handleBudgetSaved = (_savedBudget: Budget) => { // Parameter can be ignored if not used
+  const handleBudgetSaved = (_savedBudget: Budget) => { 
     fetchBudgetsAndExpenses(); 
     showToast(editingBudget ? "Budget updated successfully!" : "Budget added successfully!", "success");
     handleCloseModal();
@@ -102,12 +102,12 @@ const BudgetsPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4 p-6 bg-white shadow rounded-lg">
+      <div className="content-card flex flex-col sm:flex-row justify-between items-center gap-4"> {/* Applied .content-card */}
         <div className="flex items-center space-x-3">
-            <Target className="h-8 w-8 text-primary-600"/>
+            <Target className="h-8 w-8 text-primary-600 dark:text-dark-primary"/>
             <div>
-                <h1 className="text-3xl font-bold text-gray-800">Budgets</h1>
-                <p className="text-gray-600">Manage your monthly and category-specific budgets.</p>
+                <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Budgets</h1>
+                <p className="text-gray-600 dark:text-dark-text-secondary">Manage your monthly and category-specific budgets.</p>
             </div>
         </div>
         <Button onClick={() => handleOpenModal()} variant="primary" size="lg">
@@ -116,9 +116,9 @@ const BudgetsPage: React.FC = () => {
         </Button>
       </div>
 
-      <div className="p-6 bg-white shadow rounded-lg">
+      <div className="content-card"> {/* Applied .content-card */}
         <div className="flex flex-wrap items-center gap-4 mb-6">
-            <h2 className="text-xl font-semibold text-gray-700">View Budgets For:</h2>
+            <h2 className="text-xl font-semibold text-gray-700 dark:text-dark-text">View Budgets For:</h2>
             <Select
                 value={selectedMonth.toString()}
                 onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
@@ -135,8 +135,8 @@ const BudgetsPage: React.FC = () => {
 
         {isLoading ? (
           <div className="flex justify-center items-center py-10">
-            <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
-            <p className="ml-3 text-gray-500">Loading budgets...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-primary-500 dark:text-dark-primary" />
+            <p className="ml-3 text-gray-500 dark:text-dark-text-secondary">Loading budgets...</p>
           </div>
         ) : (
           <BudgetList budgets={budgets} expenses={expenses} onDelete={handleBudgetDeleted} onEdit={handleOpenModal} />
@@ -158,4 +158,4 @@ const BudgetsPage: React.FC = () => {
   );
 };
 
-export default BudgetsPage;
+export default BudgetsPage

@@ -43,17 +43,16 @@ const Modal: React.FC<ModalProps> = ({ isOpen, onClose, title, children, size = 
     >
       <div
         className={classNames(
-          "bg-white rounded-lg shadow-xl w-full m-4 sm:m-0 transform transition-all duration-300 ease-in-out animate-scaleUp", 
+          "bg-white dark:bg-dark-card rounded-lg shadow-xl w-full m-4 sm:m-0 transform transition-all duration-300 ease-in-out animate-scaleUp border border-color", // Added border-color
           sizeClasses[size]
         )}
         onClick={(e) => e.stopPropagation()} 
       >
-        {/* Removed the redundant conditional check here */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
-          <h3 className="text-lg font-semibold text-gray-800">{title || ''}</h3>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-color">
+          <h3 className="text-lg font-semibold text-gray-800 dark:text-dark-text">{title || ''}</h3>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors p-1 rounded-full -mr-2"
+            className="text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors p-1 rounded-full -mr-2"
             aria-label="Close modal"
           >
             <X size={24} />

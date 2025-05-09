@@ -9,7 +9,7 @@ import ExpenseTable from '../components/Expenses/ExpenseTable';
 import { Loader2, Filter, CalendarDays, Download } from 'lucide-react'; 
 import Select from '../components/ui/Select'; 
 import Button from '../components/ui/Button'; 
-import { exportToPdf } from '../utils/exportUtils'; // Removed exportToExcel
+import { exportToPdf } from '../utils/exportUtils'; 
 
 const HistoryPage: React.FC = () => {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
@@ -106,7 +106,7 @@ const HistoryPage: React.FC = () => {
         showToast("No data to export for the selected period.", "info");
         return;
     }
-    const fileName = `Expense_History_${selectionPeriod.replace(' ', '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    const fileName = `Expense_History_${selectionPeriod.replace(/ /g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
     const title = `Expense History for ${selectionPeriod}`;
     exportToPdf(filteredExpenses, fileName, title, timeZone);
     showToast("PDF export started.", "success");
@@ -115,11 +115,11 @@ const HistoryPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="p-6 bg-white shadow rounded-lg">
+      <div className="content-card"> {/* Applied .content-card */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
-            <h1 className="text-3xl font-bold text-gray-800">Expense History</h1>
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Expense History</h1>
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto"> 
-                <Filter size={20} className="text-gray-500 hidden sm:block" /> 
+                <Filter size={20} className="text-gray-500 dark:text-dark-text-secondary hidden sm:block" /> 
                 <Select
                     value={selectedYear.toString()}
                     onChange={(e) => setSelectedYear(parseInt(e.target.value))}
@@ -135,8 +135,8 @@ const HistoryPage: React.FC = () => {
             </div>
         </div>
          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-            <p className="text-lg text-gray-600">
-                Total for {selectionPeriod}: <span className="font-bold text-primary-600">₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            <p className="text-lg text-gray-600 dark:text-dark-text-secondary">
+                Total for {selectionPeriod}: <span className="font-bold text-primary-600 dark:text-dark-primary">₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </p>
             {filteredExpenses.length > 0 && (
                 <div className="flex space-x-2 mt-2 sm:mt-0">
@@ -149,8 +149,8 @@ const HistoryPage: React.FC = () => {
 
         {isLoading ? (
            <div className="flex justify-center items-center py-10">
-            <Loader2 className="h-8 w-8 animate-spin text-primary-500" />
-            <p className="ml-3 text-gray-500">Loading history...</p>
+            <Loader2 className="h-8 w-8 animate-spin text-primary-500 dark:text-dark-primary" />
+            <p className="ml-3 text-gray-500 dark:text-dark-text-secondary">Loading history...</p>
           </div>
         ) : filteredExpenses.length > 0 ? (
           <ExpenseTable
@@ -159,8 +159,8 @@ const HistoryPage: React.FC = () => {
             onDelete={handleExpenseDeleted}
           />
         ) : (
-          <div className="text-center text-gray-500 py-10 space-y-2">
-            <CalendarDays size={48} className="mx-auto text-gray-400" />
+          <div className="text-center text-gray-500 dark:text-dark-text-secondary py-10 space-y-2">
+            <CalendarDays size={48} className="mx-auto text-gray-400 dark:text-gray-500" />
             <p>No expenses found for the selected period.</p>
             {allExpenses.length === 0 && !isLoading && <p className="text-sm">You haven't recorded any expenses yet.</p>}
           </div>
