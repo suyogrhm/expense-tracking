@@ -1,13 +1,15 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useMemo, useCallback } from 'react'; 
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import type { Expense } from '../types';
-import { format, getYear, getMonth } from 'date-fns'; // Removed start/endOfMonth as not directly used here
+import { format, getYear, getMonth } from 'date-fns'; 
 import { toZonedTime } from 'date-fns-tz';
 import { useToast } from '../hooks/useToast';
 import ExpenseTable from '../components/Expenses/ExpenseTable'; 
-import { Loader2, Filter, CalendarDays } from 'lucide-react';
+import { Loader2, Filter, CalendarDays, Download } from 'lucide-react'; 
 import Select from '../components/ui/Select'; 
+import Button from '../components/ui/Button'; 
+import { exportToPdf } from '../utils/exportUtils'; // Removed exportToExcel
 
 const HistoryPage: React.FC = () => {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
@@ -25,7 +27,7 @@ const HistoryPage: React.FC = () => {
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); 
 
-  const fetchAllExpenses = useCallback(async () => { // Wrapped in useCallback
+  const fetchAllExpenses = useCallback(async () => { 
     if (!user) return;
     setIsLoading(true);
     try {
@@ -43,11 +45,11 @@ const HistoryPage: React.FC = () => {
     } finally {
       setIsLoading(false);
     }
-  },[user, showToast]); // Added dependencies
+  },[user, showToast]); 
 
   useEffect(() => {
     fetchAllExpenses();
-  }, [fetchAllExpenses]); // fetchAllExpenses is now stable
+  }, [fetchAllExpenses]); 
 
   useEffect(() => {
     if (allExpenses.length > 0) {
@@ -71,9 +73,9 @@ const HistoryPage: React.FC = () => {
   }, [allExpenses, selectedYear, selectedMonth, timeZone]);
 
   const years = useMemo(() => {
-    if (allExpenses.length === 0 && !isLoading) return [currentYear]; // Ensure currentYear is available even if no expenses
+    if (allExpenses.length === 0 && !isLoading) return [currentYear]; 
     const expenseYears = new Set(allExpenses.map(exp => getYear(toZonedTime(new Date(exp.expense_date), timeZone))));
-    if (!expenseYears.has(currentYear)) { // Add current year if not present from expenses
+    if (!expenseYears.has(currentYear)) { 
         expenseYears.add(currentYear);
     }
     return Array.from(expenseYears).sort((a, b) => b - a);
@@ -99,31 +101,51 @@ const HistoryPage: React.FC = () => {
     ? `Year ${selectedYear}` 
     : `${months.find(m => m.value === selectedMonth)?.label} ${selectedYear}`;
 
+  const handleExportPdf = () => {
+    if(filteredExpenses.length === 0) {
+        showToast("No data to export for the selected period.", "info");
+        return;
+    }
+    const fileName = `Expense_History_${selectionPeriod.replace(' ', '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    const title = `Expense History for ${selectionPeriod}`;
+    exportToPdf(filteredExpenses, fileName, title, timeZone);
+    showToast("PDF export started.", "success");
+  };
+
 
   return (
     <div className="space-y-8">
       <div className="p-6 bg-white shadow rounded-lg">
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-6 gap-4">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold text-gray-800">Expense History</h1>
-            <div className="flex flex-wrap items-center gap-3"> {/* Added flex-wrap */}
-                <Filter size={20} className="text-gray-500 hidden sm:block" /> {/* Hide on very small screens */}
+            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto"> 
+                <Filter size={20} className="text-gray-500 hidden sm:block" /> 
                 <Select
                     value={selectedYear.toString()}
                     onChange={(e) => setSelectedYear(parseInt(e.target.value))}
                     options={years.map(y => ({ value: y.toString(), label: y.toString() }))}
-                    className="w-full sm:w-32" // Full width on small, fixed on larger
+                    className="flex-grow sm:flex-grow-0 sm:w-32" 
                 />
                 <Select
                     value={selectedMonth.toString()}
                     onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
                     options={months}
-                    className="w-full sm:w-40" // Full width on small, fixed on larger
+                    className="flex-grow sm:flex-grow-0 sm:w-40" 
                 />
             </div>
         </div>
-         <p className="text-lg text-gray-600 mb-4">
-            Total for {selectionPeriod}: <span className="font-bold text-primary-600">₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-        </p>
+         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+            <p className="text-lg text-gray-600">
+                Total for {selectionPeriod}: <span className="font-bold text-primary-600">₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </p>
+            {filteredExpenses.length > 0 && (
+                <div className="flex space-x-2 mt-2 sm:mt-0">
+                    <Button onClick={handleExportPdf} variant="outline" size="sm">
+                        <Download size={16} className="mr-2" /> PDF
+                    </Button>
+                </div>
+            )}
+        </div>
 
         {isLoading ? (
            <div className="flex justify-center items-center py-10">

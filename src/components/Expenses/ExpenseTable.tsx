@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Expense } from '../../types';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Edit3, Trash2, AlertTriangle } from 'lucide-react'; // Removed MoreVertical
+import { Edit3, Trash2, AlertTriangle } from 'lucide-react'; 
 import Button from '../ui/Button';
 import ExpenseForm from './ExpenseForm'; 
 import Modal from '../ui/Modal'; 
@@ -19,7 +19,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
   const [deletingExpenseId, setDeletingExpenseId] = useState<string | null>(null);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
-  const [isDeleting, setIsDeleting] = useState(false); // Loading state for delete action
+  const [isDeleting, setIsDeleting] = useState(false); 
 
   const { showToast } = useToast();
   const timeZone = 'Asia/Kolkata';
@@ -85,7 +85,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
               <th scope="col" className="px-4 sm:px-6 py-3">Category</th>
               <th scope="col" className="px-4 sm:px-6 py-3">Sub-Category</th>
               <th scope="col" className="px-4 sm:px-6 py-3 text-right">Amount (₹)</th>
-              <th scope="col" className="px-4 sm:px-6 py-3 hidden md:table-cell">Description</th> {/* Hide on small screens */}
+              <th scope="col" className="px-4 sm:px-6 py-3 hidden md:table-cell">Description</th> 
               <th scope="col" className="px-4 sm:px-6 py-3 text-center">Actions</th>
             </tr>
           </thead>
@@ -97,7 +97,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
                 </td>
                 <td className="px-4 sm:px-6 py-4">{expense.category}</td>
                 <td className="px-4 sm:px-6 py-4">{expense.sub_category || 'N/A'}</td>
-                <td className="px-4 sm:px-6 py-4 text-right font-medium text-gray-800"> {/* Changed color from rupee */}
+                <td className="px-4 sm:px-6 py-4 text-right font-medium text-gray-800"> 
                   {expense.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
                 </td>
                 <td className="px-4 sm:px-6 py-4 max-w-xs truncate hidden md:table-cell" title={expense.description || undefined}>

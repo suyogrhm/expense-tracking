@@ -3,7 +3,7 @@ import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
 import type { Expense, Category, SubCategory } from '../../types';
 import { format, parse } from 'date-fns'; 
-import { toZonedTime, formatInTimeZone } from 'date-fns-tz'; // Keep formatInTimeZone
+import { toZonedTime, formatInTimeZone } from 'date-fns-tz'; 
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import SelectUI from '../ui/Select'; 
@@ -143,9 +143,9 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
       showToast("Please fill amount and date.", "error");
       return;
     }
-    if (!category && !customCategory.trim()) {
-        showToast("Please select or enter a category.", "error");
-        return;
+    if (category !== 'Other (Custom)' && !category) {
+         showToast("Please select a category.", "error");
+         return;
     }
     if (category === 'Other (Custom)' && !customCategory.trim()) {
       showToast("Please enter your custom category name.", "error");
@@ -156,10 +156,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
 
     const finalCategoryName = category === 'Other (Custom)' ? customCategory.trim() : category;
     
-    // Parse the local datetime string from the input
     const localDate = parse(expenseDate, "yyyy-MM-dd'T'HH:mm", new Date());
-    
-    // Convert the local Date object to a UTC ISO string
     const utcDateString = localDate.toISOString(); 
     
     const expenseData: Omit<Expense, 'id' | 'created_at'> = { 
@@ -168,7 +165,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
       category: finalCategoryName,
       sub_category: subCategoryState || null, 
       description: description.trim() || null,
-      expense_date: utcDateString, // Store the UTC ISO string
+      expense_date: utcDateString, 
     };
 
     try {
@@ -290,12 +287,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
           icon={<ChevronDown size={18} className="text-gray-400 opacity-50" />}
         />
       )}
-      {category && mainCategories.find(c => c.name === category && c.id === 'groceries') && (
+      {category === 'Groceries' && (
          <Input
             id="subCategoryGroceries"
             type="text"
             label="Store / Item Detail (Optional)"
-            value={subCategoryState}
+            value={subCategoryState} 
             onChange={(e) => setSubCategoryState(e.target.value)}
             placeholder="e.g., DMart, BigBasket, Milk & Bread"
         />
