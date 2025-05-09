@@ -33,12 +33,12 @@ const HistoryPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('expenses')
-        .select('*')
+        .select('*, tags(id, name)') // Fetch related tags
         .eq('user_id', user.id)
         .order('expense_date', { ascending: false });
 
       if (error) throw error;
-      setAllExpenses(data as Expense[] || []);
+      setAllExpenses((data || []).map(exp => ({...exp, tags: exp.tags || []})) as Expense[]);
     } catch (error: any) {
       console.error("Error fetching all expenses:", error);
       showToast("Failed to load expense history.", "error");
@@ -115,7 +115,7 @@ const HistoryPage: React.FC = () => {
 
   return (
     <div className="space-y-8">
-      <div className="content-card"> {/* Applied .content-card */}
+      <div className="content-card"> 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Expense History</h1>
             <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto"> 

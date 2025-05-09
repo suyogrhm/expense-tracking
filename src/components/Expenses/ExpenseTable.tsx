@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import type { Expense } from '../../types';
 import { formatInTimeZone } from 'date-fns-tz';
-import { Edit3, Trash2, AlertTriangle, Calendar, FileText } from 'lucide-react'; 
+import { Edit3, Trash2, AlertTriangle, Calendar, FileText, Tags } from 'lucide-react'; 
 import Button from '../ui/Button';
 import ExpenseForm from './ExpenseForm'; 
 import Modal from '../ui/Modal'; 
@@ -53,6 +53,17 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
     if (!deletingExpenseId) return;
     setIsDeleting(true);
     try {
+      // First delete associated tags from expense_tags
+      const { error: deleteTagsError } = await supabase
+        .from('expense_tags')
+        .delete()
+        .eq('expense_id', deletingExpenseId);
+
+      if (deleteTagsError) {
+        // Log error but attempt to delete expense anyway, or handle more gracefully
+        console.error("Error deleting associated tags:", deleteTagsError);
+      }
+      
       const { error } = await supabase
         .from('expenses')
         .delete()
@@ -87,6 +98,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
               <th scope="col" className="px-4 sm:px-6 py-3">Sub-Category</th>
               <th scope="col" className="px-4 sm:px-6 py-3 text-right">Amount (₹)</th>
               <th scope="col" className="px-4 sm:px-6 py-3">Description</th> 
+              <th scope="col" className="px-4 sm:px-6 py-3">Tags</th>
               <th scope="col" className="px-4 sm:px-6 py-3 text-center">Actions</th>
             </tr>
           </thead>
@@ -103,6 +115,15 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
                 </td>
                 <td className="px-4 sm:px-6 py-4 max-w-xs truncate" title={expense.description || undefined}>
                   {expense.description || 'N/A'}
+                </td>
+                <td className="px-4 sm:px-6 py-4">
+                  <div className="flex flex-wrap gap-1">
+                    {expense.tags?.map(tag => (
+                      <span key={tag.id || tag.name} className="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-full">
+                        {tag.name}
+                      </span>
+                    ))}
+                  </div>
                 </td>
                 <td className="px-4 sm:px-6 py-4 text-center">
                   <div className="flex items-center justify-center space-x-1 sm:space-x-2">
@@ -135,15 +156,27 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
                 {formatInTimeZone(new Date(expense.expense_date), timeZone, 'dd MMM yy, hh:mm a')}
             </div>
             {expense.description && (
-              <p className="text-sm text-gray-600 dark:text-gray-300 mb-3 break-words">
+              <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 break-words">
                 <FileText size={14} className="inline mr-1 mb-0.5 flex-shrink-0" /> {expense.description}
               </p>
+            )}
+            {expense.tags && expense.tags.length > 0 && (
+                <div className="mb-3">
+                    <div className="flex flex-wrap gap-1 items-center">
+                        <Tags size={14} className="text-gray-500 dark:text-dark-text-secondary mr-1 flex-shrink-0"/>
+                        {expense.tags.map(tag => (
+                            <span key={tag.id || tag.name} className="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-full">
+                                {tag.name}
+                            </span>
+                        ))}
+                    </div>
+                </div>
             )}
             <div className="flex justify-end space-x-2 mt-2 border-t border-color pt-2">
               <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(expense)}>
                 <Edit3 size={14} className="mr-1" /> Edit
               </Button>
-              <Button variant="dangerOutline" size="sm" onClick={() => handleOpenDeleteConfirm(expense.id)}> {/* Assuming dangerOutline variant exists or create one */}
+              <Button variant="dangerOutline" size="sm" onClick={() => handleOpenDeleteConfirm(expense.id)}> 
                 <Trash2 size={14} className="mr-1" /> Delete
               </Button>
             </div>

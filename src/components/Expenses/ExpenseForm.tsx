@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Expense, Category as PresetCategory, SubCategory as PresetSubCategory, UserDefinedCategory, UserDefinedSubCategory as UserDefinedSubCategoryType } from '../../types'; // Added UserDefinedSubCategoryType
- // Added UserDefinedSubCategoryType
+import type { Expense, Category as PresetCategory, SubCategory as PresetSubCategory, UserDefinedCategory, UserDefinedSubCategory as UserDefinedSubCategoryType, Tag } from '../../types';
 import { format, parse } from 'date-fns'; 
 import { toZonedTime, formatInTimeZone } from 'date-fns-tz'; 
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import SelectUI from '../ui/Select'; 
+import TagInput from '../ui/TagInput'; 
 import { useToast } from '../../hooks/useToast';
-import { Calendar, Tag, ChevronDown, X } from 'lucide-react'; 
+import { Calendar, Tag as CategoryIconLucide, ChevronDown, X } from 'lucide-react'; 
 
 interface ExpenseFormProps {
   onExpenseAdded: (expense: Expense) => void;
@@ -26,36 +26,11 @@ const presetMainCategories: PresetCategory[] = [
 ];
 
 const presetSubCategories: Record<string, PresetSubCategory[]> = {
-  bills: [
-    { id: 'electricity', name: 'Electricity' },
-    { id: 'water', name: 'Water' },
-    { id: 'act_internet', name: 'ACT Internet' },
-    { id: 'airtel', name: 'Airtel' },
-    { id: 'other_bill', name: 'Other Bill'},
-  ],
-  petrol: [
-    { id: 'splendor', name: 'Splendor' },
-    { id: 'dominar', name: 'Dominar' },
-    { id: 'santro', name: 'Santro' },
-    { id: 'other_vehicle', name: 'Other Vehicle'},
-  ],
-  food: [
-    { id: 'swiggy', name: 'Swiggy' },
-    { id: 'zomato', name: 'Zomato' },
-    { id: 'restaurant', name: 'Restaurant'},
-    { id: 'street_food', name: 'Street Food'},
-    { id: 'other_food', name: 'Other Food'},
-  ],
-  online_shopping: [
-    { id: 'amazon', name: 'Amazon' },
-    { id: 'flipkart', name: 'Flipkart' },
-    { id: 'myntra', name: 'Myntra'},
-    { id: 'other_online', name: 'Other Online Store'},
-  ],
-  groceries: [ 
-    { id: 'store_purchase', name: 'Store Purchase'},
-    { id: 'online_groceries', name: 'Online Groceries'},
-  ],
+  bills: [ { id: 'electricity', name: 'Electricity' }, { id: 'water', name: 'Water' }, { id: 'act_internet', name: 'ACT Internet' }, { id: 'airtel', name: 'Airtel' }, { id: 'other_bill', name: 'Other Bill'},],
+  petrol: [ { id: 'splendor', name: 'Splendor' }, { id: 'dominar', name: 'Dominar' }, { id: 'santro', name: 'Santro' }, { id: 'other_vehicle', name: 'Other Vehicle'},],
+  food: [ { id: 'swiggy', name: 'Swiggy' }, { id: 'zomato', name: 'Zomato' }, { id: 'restaurant', name: 'Restaurant'}, { id: 'street_food', name: 'Street Food'}, { id: 'other_food', name: 'Other Food'},],
+  online_shopping: [ { id: 'amazon', name: 'Amazon' }, { id: 'flipkart', name: 'Flipkart' }, { id: 'myntra', name: 'Myntra'}, { id: 'other_online', name: 'Other Online Store'},],
+  groceries: [ { id: 'store_purchase', name: 'Store Purchase'}, { id: 'online_groceries', name: 'Online Groceries'},],
 };
 
 const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpense, onFormCancel }) => {
@@ -69,6 +44,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
   const [customCategoryInput, setCustomCategoryInput] = useState<string>(''); 
   const [expenseDate, setExpenseDate] = useState<string>(() => format(toZonedTime(new Date(), timeZone), "yyyy-MM-dd'T'HH:mm"));
   const [description, setDescription] = useState<string>('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
   
   const [userDefinedExpenseCategories, setUserDefinedExpenseCategories] = useState<UserDefinedCategory[]>([]);
@@ -91,7 +67,6 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
       } else {
         setUserDefinedExpenseCategories((data || []).map(cat => ({
             ...cat,
-            // Ensure user_defined_sub_categories is always an array
             user_defined_sub_categories: Array.isArray(cat.user_defined_sub_categories) 
                                           ? cat.user_defined_sub_categories 
                                           : [] 
@@ -131,6 +106,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
       }
       setSubCategoryName(existingExpense.sub_category || '');
       setDescription(existingExpense.description || '');
+      setSelectedTags(existingExpense.tags?.map(tag => tag.name) || []); 
     } else {
       setAmount('');
       setSelectedCategoryName('');
@@ -139,6 +115,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
       setIsCustomCategoryMode(false);
       setExpenseDate(format(toZonedTime(new Date(), timeZone), "yyyy-MM-dd'T'HH:mm"));
       setDescription('');
+      setSelectedTags([]); 
     }
   }, [existingExpense, timeZone, userDefinedExpenseCategories]);
 
@@ -147,23 +124,18 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
       setAvailableSubCategories([]);
       return;
     }
-
     const presetMatch = presetMainCategories.find(c => c.name === selectedCategoryName);
     if (presetMatch && presetSubCategories[presetMatch.id]) {
       setAvailableSubCategories(presetSubCategories[presetMatch.id]);
       return;
     }
-
     const userDefinedMatch = userDefinedExpenseCategories.find(udc => udc.name === selectedCategoryName);
-    // Ensure user_defined_sub_categories is an array before mapping
     if (userDefinedMatch && Array.isArray(userDefinedMatch.user_defined_sub_categories)) {
       setAvailableSubCategories(userDefinedMatch.user_defined_sub_categories.map((sub: UserDefinedSubCategoryType) => ({id: sub.id, name: sub.name})));
       return;
     }
-    
     setAvailableSubCategories([]); 
   }, [selectedCategoryName, userDefinedExpenseCategories]);
-
 
   const handleCategoryChange = (value: string) => {
     if (value === '---OTHER---') {
@@ -188,33 +160,21 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (!user) {
-        showToast("User not authenticated.", "error");
-        return;
-    }
-    if (!amount || !expenseDate) {
-      showToast("Please fill amount and date.", "error");
-      return;
-    }
+    if (!user) { showToast("User not authenticated.", "error"); return; }
+    if (!amount || !expenseDate) { showToast("Please fill amount and date.", "error"); return; }
     
     let finalCategoryToSave = selectedCategoryName;
     if (isCustomCategoryMode) {
-        if (!customCategoryInput.trim()) {
-            showToast("Please enter your custom category name.", "error");
-            return;
-        }
+        if (!customCategoryInput.trim()) { showToast("Please enter your custom category name.", "error"); return; }
         finalCategoryToSave = customCategoryInput.trim();
-    } else if (!selectedCategoryName) {
-        showToast("Please select a category or choose 'Other'.", "error");
-        return;
-    }
+    } else if (!selectedCategoryName) { showToast("Please select a category or choose 'Other'.", "error"); return; }
 
     setIsLoading(true);
     
     const localDate = parse(expenseDate, "yyyy-MM-dd'T'HH:mm", new Date());
     const utcDateString = localDate.toISOString(); 
     
-    const expenseData: Omit<Expense, 'id' | 'created_at'> = { 
+    const expensePayload: Omit<Expense, 'id' | 'created_at' | 'tags'> = { 
       user_id: user.id,
       amount: parseFloat(amount),
       category: finalCategoryToSave,
@@ -224,62 +184,123 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
     };
 
     try {
-      let data: Expense | null = null; 
+      let savedExpense: Expense | null = null;
       let error;
+
       if (existingExpense && existingExpense.id) {
         const { data: updateData, error: updateError } = await supabase
           .from('expenses')
-          .update(expenseData)
+          .update(expensePayload)
           .eq('id', existingExpense.id)
           .select()
           .single();
-          data = updateData;
-          error = updateError;
+        savedExpense = updateData;
+        error = updateError;
       } else {
         const { data: insertData, error: insertError } = await supabase
           .from('expenses')
-          .insert(expenseData)
+          .insert(expensePayload)
           .select()
           .single();
-          data = insertData;
-          error = insertError;
+        savedExpense = insertData;
+        error = insertError;
       }
 
       if (error) throw error;
+      if (!savedExpense) throw new Error("Failed to save expense details.");
 
-      if (data) {
-        onExpenseAdded(data as Expense); 
-        if (!existingExpense) { 
-            setAmount('');
-            setSelectedCategoryName('');
-            setSubCategoryName('');
-            setCustomCategoryInput('');
-            setIsCustomCategoryMode(false);
-            setDescription('');
-            setExpenseDate(format(toZonedTime(new Date(), timeZone), "yyyy-MM-dd'T'HH:mm"));
+      const tagIdsToLink: string[] = [];
+      for (const tagName of selectedTags) {
+        let { data: existingTag, error: tagFetchError } = await supabase
+          .from('tags')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('name', tagName)
+          .single();
+
+        if (tagFetchError && tagFetchError.code !== 'PGRST116') { 
+          throw tagFetchError;
+        }
+
+        if (existingTag) {
+          tagIdsToLink.push(existingTag.id);
+        } else {
+          const { data: newTag, error: newTagError } = await supabase
+            .from('tags')
+            .insert({ user_id: user.id, name: tagName })
+            .select('id')
+            .single();
+          if (newTagError) throw newTagError;
+          if (newTag) tagIdsToLink.push(newTag.id);
         }
       }
+      
+      if (existingExpense && existingExpense.id) { 
+          const { error: deleteLinksError } = await supabase
+            .from('expense_tags')
+            .delete()
+            .eq('expense_id', existingExpense.id);
+          if (deleteLinksError) console.error("Error deleting old tag links:", deleteLinksError); 
+      }
+
+      if (tagIdsToLink.length > 0) {
+        const expenseTagLinks = tagIdsToLink.map(tagId => ({
+          expense_id: savedExpense!.id,
+          tag_id: tagId,
+          user_id: user.id,
+        }));
+        const { error: linkError } = await supabase.from('expense_tags').insert(expenseTagLinks);
+        if (linkError) throw linkError;
+      }
+      
+      let tagsForCallback: Tag[] = [];
+      if (tagIdsToLink.length > 0) {
+        const { data: fetchedTags, error: fetchedTagsError } = await supabase
+            .from('tags')
+            .select('*')
+            .in('id', tagIdsToLink);
+        if (fetchedTagsError) console.error("Error fetching full tags for callback:", fetchedTagsError);
+        else tagsForCallback = fetchedTags || [];
+      }
+
+
+      const finalSavedExpenseWithTags: Expense = {
+        ...savedExpense,
+        tags: tagsForCallback 
+      };
+
+      onExpenseAdded(finalSavedExpenseWithTags); 
+      if (!existingExpense) { 
+          setAmount('');
+          setSelectedCategoryName('');
+          setSubCategoryName('');
+          setCustomCategoryInput('');
+          setIsCustomCategoryMode(false);
+          setDescription('');
+          setSelectedTags([]);
+          setExpenseDate(format(toZonedTime(new Date(), timeZone), "yyyy-MM-dd'T'HH:mm"));
+      }
     } catch (error: any) {
-      console.error("Error saving expense:", error);
-      showToast(error.message || "Failed to save expense.", "error");
+      console.error("Error saving expense with tags:", error);
+      showToast(error.message || "Failed to save expense with tags.", "error");
     } finally {
       setIsLoading(false);
     }
   };
   
   return (
-    <form onSubmit={handleSubmit} className="space-y-6 p-1">
-      <h3 className="text-xl font-semibold text-gray-700 dark:text-dark-text mb-4 border-b border-color pb-2">
+    <form onSubmit={handleSubmit} className="space-y-6"> 
+      <h3 className="text-xl font-semibold text-gray-700 dark:text-dark-text mb-4 border-b border-color pb-3">
         {existingExpense ? 'Edit Expense' : 'Add New Expense'}
       </h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4"> 
         <Input
           id="expenseDate"
           type="datetime-local"
           label="Date & Time"
           value={expenseDate}
           onChange={(e) => setExpenseDate(e.target.value)}
-          icon={<Calendar size={18} className="text-gray-400 dark:text-gray-500" />}
+          icon={<Calendar size={18} className="text-gray-400 dark:text-dark-text-secondary" />}
           required
         />
         <Input
@@ -288,7 +309,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
           label="Amount"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          icon={<span className="text-gray-400 dark:text-gray-500 font-semibold">₹</span>}
+          icon={<span className="text-gray-400 dark:text-dark-text-secondary font-semibold">₹</span>}
           placeholder="0.00"
           step="0.01"
           required
@@ -304,7 +325,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
           onChange={(e) => handleCategoryChange(e.target.value)}
           options={allCategoryOptions}
           prompt="Select a category"
-          icon={<Tag size={18} className="text-gray-400 dark:text-gray-500" />}
+          icon={<CategoryIconLucide size={18} className="text-gray-400 dark:text-dark-text-secondary" />} 
           required={!isCustomCategoryMode}
         />
         {selectedCategoryName && (
@@ -313,7 +334,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
                 onClick={deselectCategory} 
                 variant="ghost" 
                 size="icon" 
-                className="absolute top-7 right-2 p-1 text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300"
+                className="absolute top-7 right-2 p-1 text-gray-400 dark:text-dark-text-secondary hover:text-gray-600 dark:hover:text-gray-300"
                 aria-label="Deselect category"
             >
                 <X size={16} />
@@ -341,10 +362,12 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
           onChange={(e) => setSubCategoryName(e.target.value)}
           options={availableSubCategories.map(sc => ({ value: sc.name, label: sc.name }))}
           prompt="Select a sub-category"
-          icon={<ChevronDown size={18} className="text-gray-400 dark:text-gray-500 opacity-50" />}
+          icon={<ChevronDown size={18} className="text-gray-400 dark:text-dark-text-secondary opacity-50" />}
         />
       )}
-      { (selectedCategoryName === 'Groceries' || (isCustomCategoryMode && customCategoryInput)) && (
+      { (selectedCategoryName === 'Groceries' || (isCustomCategoryMode && customCategoryInput)) && 
+        !(selectedCategoryName !== '---OTHER---' && availableSubCategories.length > 0 && selectedCategoryName !== 'Groceries') && 
+        (
          <Input
             id="subCategoryCustomInput"
             type="text"
@@ -355,6 +378,10 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
         />
       )}
 
+      <TagInput 
+        selectedTags={selectedTags}
+        onChangeSelectedTags={setSelectedTags}
+      />
 
       <Input
         id="description"
