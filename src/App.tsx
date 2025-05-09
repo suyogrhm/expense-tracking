@@ -4,10 +4,12 @@ import RegisterPage from './pages/RegisterPage';
 import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import DashboardPage from './pages/DashboardPage';
 import HistoryPage from './pages/HistoryPage';
+import IncomePage from './pages/IncomePage'; // New Import
+import BudgetsPage from './pages/BudgetsPage'; // New Import
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import AuthLayout from './components/Layout/AuthLayout';
-import { Toaster } from './components/ui/Toaster';
+import { Toaster } from './components/ui/Toaster'; 
 
 function App() {
   return (
@@ -23,10 +25,11 @@ function App() {
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/history" element={<HistoryPage />} />
-          {/* Add other protected routes here */}
+          <Route path="/income" element={<IncomePage />} /> {/* New Route */}
+          <Route path="/budgets" element={<BudgetsPage />} /> {/* New Route */}
         </Route>
         
-        <Route path="*" element={<Navigate to="/dashboard" replace />} /> {/* Fallback route */}
+        <Route path="*" element={<Navigate to="/dashboard" replace />} /> 
       </Routes>
       <Toaster />
     </>
