@@ -7,7 +7,7 @@ import { toZonedTime, formatInTimeZone } from 'date-fns-tz';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import { useToast } from '../../hooks/useToast';
-import { Calendar, IndianRupee, Briefcase } from 'lucide-react';
+import { Calendar, Briefcase } from 'lucide-react';
 
 interface IncomeFormProps {
   existingIncome: Income | null;
