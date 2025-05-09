@@ -6,10 +6,12 @@ import { format, getYear, getMonth } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { useToast } from '../hooks/useToast';
 import ExpenseTable from '../components/Expenses/ExpenseTable'; 
-import { Loader2, Filter, CalendarDays, Download } from 'lucide-react'; 
+import { Loader2, Filter, CalendarDays, Download, Search as SearchIcon } from 'lucide-react'; // Added SearchIcon
 import Select from '../components/ui/Select'; 
 import Button from '../components/ui/Button'; 
+import Input from '../components/ui/Input'; // New Import
 import { exportToPdf } from '../utils/exportUtils'; 
+import { useDebounce } from '../hooks/useDebounce'; // New Import
 
 const HistoryPage: React.FC = () => {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
@@ -26,6 +28,8 @@ const HistoryPage: React.FC = () => {
 
   const [selectedYear, setSelectedYear] = useState<number>(currentYear);
   const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); 
+  const [searchTerm, setSearchTerm] = useState<string>(''); // State for search term
+  const debouncedSearchTerm = useDebounce(searchTerm, 500); // Debounce search term
 
   const fetchAllExpenses = useCallback(async () => { 
     if (!user) return;
@@ -33,7 +37,7 @@ const HistoryPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('expenses')
-        .select('*, tags(id, name)') // Fetch related tags
+        .select('*, tags(id, name)') 
         .eq('user_id', user.id)
         .order('expense_date', { ascending: false });
 
@@ -52,25 +56,38 @@ const HistoryPage: React.FC = () => {
   }, [fetchAllExpenses]); 
 
   useEffect(() => {
-    if (allExpenses.length > 0) {
-      let newFilteredExpenses = allExpenses;
-      if (selectedYear !== 0) { 
-        newFilteredExpenses = newFilteredExpenses.filter(exp => {
-          const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
-          return getYear(expenseDateInIST) === selectedYear;
-        });
-      }
-      if (selectedMonth !== 0) { 
-        newFilteredExpenses = newFilteredExpenses.filter(exp => {
-          const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
-          return getMonth(expenseDateInIST) + 1 === selectedMonth;
-        });
-      }
-      setFilteredExpenses(newFilteredExpenses);
-    } else {
-        setFilteredExpenses([]);
+    let newFilteredExpenses = allExpenses;
+
+    // Filter by year
+    if (selectedYear !== 0) { 
+      newFilteredExpenses = newFilteredExpenses.filter(exp => {
+        const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
+        return getYear(expenseDateInIST) === selectedYear;
+      });
     }
-  }, [allExpenses, selectedYear, selectedMonth, timeZone]);
+
+    // Filter by month
+    if (selectedMonth !== 0) { 
+      newFilteredExpenses = newFilteredExpenses.filter(exp => {
+        const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
+        return getMonth(expenseDateInIST) + 1 === selectedMonth;
+      });
+    }
+
+    // Filter by search term (debounced)
+    if (debouncedSearchTerm.trim() !== '') {
+      const lowerSearchTerm = debouncedSearchTerm.toLowerCase();
+      newFilteredExpenses = newFilteredExpenses.filter(exp => 
+        exp.category.toLowerCase().includes(lowerSearchTerm) ||
+        (exp.sub_category && exp.sub_category.toLowerCase().includes(lowerSearchTerm)) ||
+        (exp.description && exp.description.toLowerCase().includes(lowerSearchTerm)) ||
+        (exp.amount.toString().includes(lowerSearchTerm)) || // Search by amount
+        (exp.tags && exp.tags.some(tag => tag.name.toLowerCase().includes(lowerSearchTerm)))
+      );
+    }
+
+    setFilteredExpenses(newFilteredExpenses);
+  }, [allExpenses, selectedYear, selectedMonth, debouncedSearchTerm, timeZone]);
 
   const years = useMemo(() => {
     if (allExpenses.length === 0 && !isLoading) return [currentYear]; 
@@ -116,27 +133,41 @@ const HistoryPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <div className="content-card"> 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Expense History</h1>
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto"> 
-                <Filter size={20} className="text-gray-500 dark:text-dark-text-secondary hidden sm:block" /> 
-                <Select
-                    value={selectedYear.toString()}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    options={years.map(y => ({ value: y.toString(), label: y.toString() }))}
-                    className="flex-grow sm:flex-grow-0 sm:w-32" 
-                />
-                <Select
-                    value={selectedMonth.toString()}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    options={months}
-                    className="flex-grow sm:flex-grow-0 sm:w-40" 
+            <div className="w-full md:w-auto">
+                 <Input
+                    id="expenseSearch"
+                    type="search"
+                    placeholder="Search expenses..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    icon={<SearchIcon size={18} className="text-gray-400 dark:text-dark-text-secondary" />}
+                    containerClassName="w-full"
                 />
             </div>
         </div>
+        <div className="flex flex-wrap items-center gap-3 mb-6 pb-6 border-b border-color"> 
+            <Filter size={20} className="text-gray-500 dark:text-dark-text-secondary hidden sm:block" /> 
+            <Select
+                label="Year:"
+                value={selectedYear.toString()}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                options={years.map(y => ({ value: y.toString(), label: y.toString() }))}
+                className="flex-grow sm:flex-grow-0 sm:w-32" 
+            />
+            <Select
+                label="Month:"
+                value={selectedMonth.toString()}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                options={months}
+                className="flex-grow sm:flex-grow-0 sm:w-40" 
+            />
+        </div>
          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
             <p className="text-lg text-gray-600 dark:text-dark-text-secondary">
-                Total for {selectionPeriod}: <span className="font-bold text-primary-600 dark:text-dark-primary">₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                Total for {selectionPeriod} {debouncedSearchTerm && `(matching "${debouncedSearchTerm}")`}: 
+                <span className="font-bold text-primary-600 dark:text-dark-primary"> ₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </p>
             {filteredExpenses.length > 0 && (
                 <div className="flex space-x-2 mt-2 sm:mt-0">
@@ -161,7 +192,7 @@ const HistoryPage: React.FC = () => {
         ) : (
           <div className="text-center text-gray-500 dark:text-dark-text-secondary py-10 space-y-2">
             <CalendarDays size={48} className="mx-auto text-gray-400 dark:text-gray-500" />
-            <p>No expenses found for the selected period.</p>
+            <p>No expenses found {debouncedSearchTerm ? `matching "${debouncedSearchTerm}"` : 'for the selected period'}.</p>
             {allExpenses.length === 0 && !isLoading && <p className="text-sm">You haven't recorded any expenses yet.</p>}
           </div>
         )}
