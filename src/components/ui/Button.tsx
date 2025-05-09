@@ -1,9 +1,9 @@
 import React from 'react';
 import classNames from 'classnames';
-import { Loader2 } from 'lucide-react'; // Import Loader2
+import { Loader2 } from 'lucide-react'; 
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'icon';
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'icon' | 'dangerOutline'; // Added dangerOutline
   size?: 'sm' | 'md' | 'lg' | 'icon';
   isLoading?: boolean;
 }
@@ -21,10 +21,11 @@ const Button: React.FC<ButtonProps> = ({
   const variantStyles = {
     primary: 'bg-primary-600 text-white hover:bg-primary-700 focus:ring-primary-500',
     secondary: 'bg-primary-100 text-primary-700 hover:bg-primary-200 focus:ring-primary-500',
-    outline: 'border border-gray-300 text-gray-700 bg-white hover:bg-gray-50 focus:ring-primary-500',
-    ghost: 'text-gray-700 hover:bg-gray-100 focus:ring-primary-500 dark:text-gray-200 dark:hover:bg-gray-700',
+    outline: 'border border-gray-300 dark:border-dark-border text-gray-700 dark:text-dark-text-secondary bg-white dark:bg-dark-card hover:bg-gray-50 dark:hover:bg-gray-700 focus:ring-primary-500',
+    ghost: 'text-gray-700 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-primary-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
-    icon: 'p-0 m-0 bg-transparent hover:bg-gray-100 rounded-full focus:ring-gray-300 dark:hover:bg-gray-700', 
+    icon: 'p-0 m-0 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full focus:ring-gray-300 dark:focus:ring-gray-600', 
+    dangerOutline: 'border border-red-500 dark:border-red-400 text-red-500 dark:text-red-400 bg-transparent hover:bg-red-50 dark:hover:bg-red-900 dark:hover:bg-opacity-20 focus:ring-red-500', // New variant styles
   };
 
   const sizeStyles = {
@@ -43,7 +44,7 @@ const Button: React.FC<ButtonProps> = ({
       disabled={isLoading || props.disabled}
       {...props}
     >
-      {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />} {/* Use Loader2 */}
+      {isLoading && <Loader2 className="animate-spin h-4 w-4 mr-2" />} 
       {children}
     </button>
   );

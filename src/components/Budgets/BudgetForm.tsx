@@ -1,26 +1,21 @@
-// src/components/Budgets/BudgetForm.tsx 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../../supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
-import type { Budget } from '../../types';
+import type { Budget, UserDefinedCategory } from '../../types'; 
 import { format, getYear } from 'date-fns';
 import Input from '../ui/Input';
 import Button from '../ui/Button';
 import SelectUI from '../ui/Select';
 import { useToast } from '../../hooks/useToast';
-import { Tag, Calendar } from 'lucide-react';
+import { Tag, Calendar } from 'lucide-react'; 
 
-const mainCategoriesForBudget = [
-  // Removed the duplicate "Overall Budget" entry from here
+const presetBudgetCategories = [
   { value: 'Bills', label: 'Bills' },
   { value: 'Petrol', label: 'Petrol' },
   { value: 'Food', label: 'Food' },
   { value: 'Groceries', label: 'Groceries' },
   { value: 'Online Shopping', label: 'Online Shopping' },
-  // Add other predefined categories you want to allow budgeting for
-  // Or allow custom category input if desired (more complex)
 ];
-
 
 interface BudgetFormProps {
   existingBudget: Budget | null;
@@ -35,16 +30,47 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
   const { showToast } = useToast();
 
   const [amount, setAmount] = useState('');
-  const [category, setCategory] = useState<string | null>(null); 
+  const [selectedCategoryName, setSelectedCategoryName] = useState<string | null>(null); 
   const [year, setYear] = useState<number>(currentYear);
   const [month, setMonth] = useState<number>(currentMonth);
   const [description, setDescription] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [userDefinedExpenseCategories, setUserDefinedExpenseCategories] = useState<UserDefinedCategory[]>([]);
+
+  useEffect(() => {
+    const fetchUserCategories = async () => {
+      if (!user) return;
+      const { data, error } = await supabase
+        .from('user_defined_categories')
+        .select('*') // Fetch all fields for UserDefinedCategory
+        .eq('user_id', user.id)
+        .eq('type', 'expense')
+        .order('name', { ascending: true });
+
+      if (error) {
+        console.error("Error fetching user expense categories for budget:", error);
+      } else {
+        setUserDefinedExpenseCategories(data || []);
+      }
+    };
+    fetchUserCategories();
+  }, [user]);
+
+  const allBudgetCategoriesOptions = useMemo(() => {
+    const options = [...presetBudgetCategories];
+    userDefinedExpenseCategories.forEach(udc => {
+      if (!options.find(opt => opt.value === udc.name)) {
+        options.push({ value: udc.name, label: udc.name });
+      }
+    });
+    return options.sort((a,b) => a.label.localeCompare(b.label));
+  }, [userDefinedExpenseCategories]);
+
 
   useEffect(() => {
     if (existingBudget) {
       setAmount(existingBudget.amount.toString());
-      setCategory(existingBudget.category || null); 
+      setSelectedCategoryName(existingBudget.category || null); 
       setYear(existingBudget.year);
       setMonth(existingBudget.month);
       setDescription(existingBudget.description || '');
@@ -52,7 +78,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
       setYear(currentYear);
       setMonth(currentMonth);
       setAmount('');
-      setCategory(null); // Default to overall budget
+      setSelectedCategoryName(null);
       setDescription('');
     }
   }, [existingBudget, currentYear, currentMonth]);
@@ -68,7 +94,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
     const budgetData = {
       user_id: user.id,
       amount: parseFloat(amount),
-      category: category || null, 
+      category: selectedCategoryName || null, 
       year: parseInt(year.toString(), 10),
       month: parseInt(month.toString(), 10),
       description: description.trim() || null,
@@ -107,7 +133,7 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
         onBudgetSaved(data as Budget);
          if (!existingBudget) { 
             setAmount('');
-            setCategory(null);
+            setSelectedCategoryName(null);
             setDescription('');
         }
       }
@@ -161,10 +187,10 @@ const BudgetForm: React.FC<BudgetFormProps> = ({ existingBudget, onBudgetSaved, 
       <SelectUI
         id="budgetCategory"
         label="Category (Optional)"
-        value={category || ''} 
-        onChange={(e) => setCategory(e.target.value || null)} 
-        options={mainCategoriesForBudget} // Use the corrected list
-        prompt="Overall Budget (All Categories)" // This acts as the default "Overall" option
+        value={selectedCategoryName || ''} 
+        onChange={(e) => setSelectedCategoryName(e.target.value || null)} 
+        options={allBudgetCategoriesOptions} 
+        prompt="Overall Budget (All Categories)" 
         icon={<Tag size={18} className="text-gray-400 dark:text-gray-500" />}
       />
       <Input

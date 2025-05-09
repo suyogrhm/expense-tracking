@@ -1,45 +1,60 @@
-// src/types/index.ts
-
 export interface Expense {
-  id: string; // UUID from Supabase
+  id: string; 
   user_id: string;
-  created_at: string; // ISO timestamp
-  expense_date: string; // ISO timestamp (stored as UTC, displayed in local time)
+  created_at: string; 
+  expense_date: string; 
   amount: number;
-  category: string;
-  sub_category?: string | null;
+  category: string; // This can now be a preset name or a UserDefinedCategory name
+  sub_category?: string | null; // This can now be a preset name or a UserDefinedSubCategory name
   description?: string | null;
 }
 
-export interface Category {
-  id: string; // e.g., 'bills', 'food'
-  name: string; // e.g., 'Bills', 'Food'
+export interface Category { // Represents a preset category
+  id: string; 
+  name: string; 
 }
 
-export interface SubCategory {
-  id: string; // e.g., 'electricity', 'swiggy'
-  name: string; // e.g., 'Electricity', 'Swiggy'
+export interface SubCategory { // Represents a preset sub-category
+  id: string; 
+  name: string; 
 }
 
-// New Type for Income
 export interface Income {
-  id: string; // UUID from Supabase
+  id: string; 
   user_id: string;
-  created_at: string; // ISO timestamp
-  income_date: string; // ISO timestamp (stored as UTC)
-  source: string; // e.g., Salary, Freelance, Gift
+  created_at: string; 
+  income_date: string; 
+  source: string; // This can now be a preset name or a UserDefinedCategory name (type 'income')
   amount: number;
   description?: string | null;
 }
 
-// New Type for Budget
 export interface Budget {
-  id: string; // UUID from Supabase
+  id: string; 
   user_id: string;
-  created_at: string; // ISO timestamp
-  month: number; // 1-12
+  created_at: string; 
+  month: number; 
   year: number;
-  category?: string | null; // If null, it's an overall budget
+  category?: string | null; // This can now be a preset name or a UserDefinedCategory name
   amount: number;
   description?: string | null;
+}
+
+// New Types for User-Defined Categories
+export interface UserDefinedCategory {
+  user_defined_sub_categories: boolean;
+  id: string; // UUID from Supabase
+  user_id: string;
+  name: string;
+  type: 'expense' | 'income';
+  created_at: string;
+  sub_categories?: UserDefinedSubCategory[]; // Optional: for easier frontend handling
+}
+
+export interface UserDefinedSubCategory {
+  id: string; // UUID from Supabase
+  user_id: string;
+  main_category_id: string; // FK to UserDefinedCategory.id
+  name: string;
+  created_at: string;
 }
