@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, NavLink } from 'react-router-dom'; 
 import { useAuth } from '../../contexts/AuthContext';
-import { LogOut, LayoutDashboard, History, UserCircle, Wallet } from 'lucide-react';
+import { LogOut, LayoutDashboard, History, UserCircle, Wallet, Landmark, Target } from 'lucide-react'; // Added Landmark, Target
 import Button from '../ui/Button'; 
 
 const Navbar: React.FC = () => {
@@ -25,8 +25,10 @@ const Navbar: React.FC = () => {
           </Link>
 
           <div className="flex items-center space-x-1 md:space-x-2"> 
-            <NavLinkItem to="/dashboard" icon={<LayoutDashboard size={20} />} label="Dashboard" />
-            <NavLinkItem to="/history" icon={<History size={20} />} label="History" />
+            <NavLinkItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />
+            <NavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" /> {/* New Link */}
+            <NavLinkItem to="/history" icon={<History size={18} />} label="Expenses" /> {/* Changed label for clarity */}
+            <NavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" /> {/* New Link */}
             
             {user && (
               <div className="relative group">
@@ -34,7 +36,6 @@ const Navbar: React.FC = () => {
                   <UserCircle size={24} />
                   <span className="hidden md:inline text-sm">{user.email?.split('@')[0]}</span>
                 </button>
-                {/* Changed mt-2 to top-full to eliminate the gap */}
                 <div className="absolute right-0 top-full w-48 bg-white rounded-md shadow-xl z-20 hidden group-hover:block py-1"> 
                   <span className="block px-4 py-2 text-xs text-gray-500 truncate" title={user.email || undefined}>{user.email}</span>
                   <div className="border-t border-gray-200 my-1"></div>
@@ -72,9 +73,8 @@ const NavLinkItem: React.FC<NavLinkItemProps> = ({ to, icon, label }) => (
     }
   >
     {icon}
-    <span className="hidden md:inline">{label}</span>
+    <span className="hidden lg:inline">{label}</span> {/* Show label on larger screens */}
   </NavLink>
 );
-
 
 export default Navbar;
