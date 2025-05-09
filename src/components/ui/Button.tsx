@@ -3,7 +3,7 @@ import classNames from 'classnames';
 import { Loader2 } from 'lucide-react'; 
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'icon' | 'dangerOutline'; // Added dangerOutline
+  variant?: 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'icon' | 'dangerOutline' | 'link'; // Added dangerOutline
   size?: 'sm' | 'md' | 'lg' | 'icon';
   isLoading?: boolean;
 }
@@ -25,7 +25,8 @@ const Button: React.FC<ButtonProps> = ({
     ghost: 'text-gray-700 dark:text-dark-text-secondary hover:bg-gray-100 dark:hover:bg-gray-700 focus:ring-primary-500',
     danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
     icon: 'p-0 m-0 bg-transparent hover:bg-gray-100 dark:hover:bg-gray-700 rounded-full focus:ring-gray-300 dark:focus:ring-gray-600', 
-    dangerOutline: 'border border-red-500 dark:border-red-400 text-red-500 dark:text-red-400 bg-transparent hover:bg-red-50 dark:hover:bg-red-900 dark:hover:bg-opacity-20 focus:ring-red-500', // New variant styles
+    dangerOutline: 'border border-red-500 dark:border-red-400 text-red-500 dark:text-red-400 bg-transparent hover:bg-red-50 dark:hover:bg-red-900 dark:hover:bg-opacity-20 focus:ring-red-500', 
+    link: 'text-primary-600 dark:text-dark-primary hover:text-primary-700 dark:hover:text-primary-400 hover:underline focus:ring-primary-500 dark:focus:ring-dark-primary p-0',
   };
 
   const sizeStyles = {
@@ -35,12 +36,12 @@ const Button: React.FC<ButtonProps> = ({
     icon: 'p-1.5', 
   };
   
-  const currentSizeStyles = variant === 'icon' ? sizeStyles.icon : sizeStyles[size];
+  const currentSizeStyles =( variant === 'icon' || variant === 'link') ? sizeStyles.icon : sizeStyles[size];
 
 
   return (
     <button
-      className={classNames(baseStyles, variantStyles[variant], currentSizeStyles, className)}
+      className={classNames(baseStyles, variantStyles[variant], variant !== 'link' ? currentSizeStyles: '', className)}
       disabled={isLoading || props.disabled}
       {...props}
     >

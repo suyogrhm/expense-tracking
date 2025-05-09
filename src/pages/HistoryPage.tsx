@@ -1,12 +1,12 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'; 
+import React, { useState, useEffect, useCallback } from 'react'; 
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import type { Expense, ExpenseFilterState, SortState, Category as PresetCategoryType } from '../types'; // Updated imports
-import { format, getYear, getMonth, parseISO, startOfDay, endOfDay } from 'date-fns'; // Added startOfDay, endOfDay
-import { toZonedTime } from 'date-fns-tz'; // zonedTimeToUtc removed as it's not directly exported for this use case
+import type { Expense, ExpenseFilterState, SortState, Category as PresetCategoryType } from '../types';
+import { format, getYear, getMonth, parseISO, endOfDay, startOfDay } from 'date-fns'; 
+import { toZonedTime } from 'date-fns-tz';
 import { useToast } from '../hooks/useToast';
 import ExpenseTable from '../components/Expenses/ExpenseTable'; 
-import AdvancedExpenseFilters from '../components/Filters/AdvancedExpenseFilters'; // New Import
+import AdvancedExpenseFilters from '../components/Filters/AdvancedExpenseFilters';
 import { Loader2, CalendarDays, Download } from 'lucide-react'; 
 import Button from '../components/ui/Button'; 
 import { exportToPdf } from '../utils/exportUtils'; 
@@ -28,9 +28,7 @@ const HistoryPage: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const timeZone = 'Asia/Kolkata'; // User's local timezone for interpreting date inputs
-  
-  // These are for default display before any filter is applied by AdvancedExpenseFilters
+  const timeZone = 'Asia/Kolkata';
   const nowInISTForDefaults = toZonedTime(new Date(), timeZone);
   const defaultDisplayYear = getYear(nowInISTForDefaults);
   const defaultDisplayMonth = getMonth(nowInISTForDefaults) + 1;
@@ -67,12 +65,17 @@ const HistoryPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('expenses')
-        .select('*, tags(id, name)') 
+        .select('*, tags(id, name), expense_split_details(*)') // Fetch related tags and split details
         .eq('user_id', user.id)
         .order('expense_date', { ascending: false }); 
 
       if (error) throw error;
-      setAllExpenses((data || []).map(exp => ({...exp, tags: exp.tags || []})) as Expense[]);
+      setAllExpenses((data || []).map(exp => ({
+          ...exp, 
+          tags: exp.tags || [],
+          expense_split_details: exp.expense_split_details || []
+        })) as Expense[]
+      );
     } catch (error: any) {
       console.error("Error fetching all expenses:", error);
       showToast("Failed to load expense history.", "error");
@@ -88,22 +91,17 @@ const HistoryPage: React.FC = () => {
   useEffect(() => {
     let processedExpenses = [...allExpenses];
 
-    // Apply date range filters
     if (activeFilters.startDate) {
-        // Parse as local date, then get start of that day in UTC for comparison
         const localStartDate = parseISO(activeFilters.startDate);
-        const startUTC = startOfDay(localStartDate).toISOString(); // Get UTC start of the selected day
+        const startUTC = startOfDay(localStartDate).toISOString(); 
         processedExpenses = processedExpenses.filter(exp => exp.expense_date >= startUTC);
     }
     if (activeFilters.endDate) {
-        // Parse as local date, then get end of that day in UTC for comparison
         const localEndDate = parseISO(activeFilters.endDate);
-        const endUTC = endOfDay(localEndDate).toISOString(); // Get UTC end of the selected day
+        const endUTC = endOfDay(localEndDate).toISOString(); 
         processedExpenses = processedExpenses.filter(exp => exp.expense_date <= endUTC);
     }
     
-    // If no specific date range, apply year/month filters (if they are still intended to be primary)
-    // This logic might be removed if date range pickers fully replace year/month dropdowns for filtering
     if (!activeFilters.startDate && !activeFilters.endDate) {
         if (activeFilters.selectedYear && activeFilters.selectedYear !== 0) {
             processedExpenses = processedExpenses.filter(exp => {
@@ -118,7 +116,6 @@ const HistoryPage: React.FC = () => {
             });
         }
     }
-
 
     if (activeFilters.category) {
         processedExpenses = processedExpenses.filter(exp => exp.category === activeFilters.category);
