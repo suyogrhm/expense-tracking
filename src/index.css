@@ -89,3 +89,9 @@ html.dark input[type="datetime-local"]::-webkit-calendar-picker-indicator {
   filter: invert(1) brightness(0.7);
   /* Example: Invert and adjust brightness for dark mode */
 }
+
+textarea#splitNote {
+  width: 100%;
+  border: 1px solid;
+  border-radius: 9px;
+}

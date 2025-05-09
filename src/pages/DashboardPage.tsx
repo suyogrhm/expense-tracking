@@ -43,14 +43,14 @@ const DashboardPage: React.FC = () => {
       const [expensesRes, incomeRes, budgetsRes] = await Promise.all([
         supabase
           .from('expenses')
-          .select('*, tags(id, name)') // Fetch related tags
+          .select('*, tags(id, name), expense_split_details(*)') 
           .eq('user_id', user.id)
           .gte('expense_date', monthStartISO)
           .lte('expense_date', monthEndISO)
           .order('expense_date', { ascending: false }),
         supabase 
           .from('incomes')
-          .select('*, tags(id, name)') // Fetch related tags for income too
+          .select('*, tags(id, name)') 
           .eq('user_id', user.id)
           .gte('income_date', monthStartISO)
           .lte('income_date', monthEndISO)
@@ -64,7 +64,12 @@ const DashboardPage: React.FC = () => {
       ]);
 
       if (expensesRes.error) throw expensesRes.error;
-      setCurrentMonthExpenses((expensesRes.data || []).map(exp => ({...exp, tags: exp.tags || []})) as Expense[]);
+      setCurrentMonthExpenses((expensesRes.data || []).map(exp => ({
+          ...exp, 
+          tags: exp.tags || [], 
+          expense_split_details: exp.expense_split_details || [] 
+        })) as Expense[]
+      );
 
 
       if (incomeRes.error) throw incomeRes.error;
@@ -87,7 +92,6 @@ const DashboardPage: React.FC = () => {
 
   const handleExpenseAdded = (_newExpense: Expense) => {
     fetchData(); 
-    // setIsExpenseFormVisible(false); // Keep form open or close based on preference
     showToast("Expense added successfully!", "success");
   };
 
@@ -136,7 +140,7 @@ const DashboardPage: React.FC = () => {
           className={classNames(
             "overflow-hidden transition-all duration-500 ease-in-out",
             {
-              "max-h-[1000px] opacity-100 mt-6 border-t border-color pt-6": isExpenseFormVisible, 
+              "max-h-[1500px] opacity-100 mt-6 border-t border-color pt-6": isExpenseFormVisible, 
               "max-h-0 opacity-0": !isExpenseFormVisible,
             }
           )}

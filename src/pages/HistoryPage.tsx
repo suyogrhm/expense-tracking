@@ -1,31 +1,63 @@
-import React, { useState, useEffect, useMemo, useCallback } from 'react'; 
+import React, { useState, useEffect, useCallback } from 'react'; 
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import type { Expense } from '../types';
-import { format, getYear, getMonth } from 'date-fns'; 
+import type { Expense, ExpenseFilterState, SortState, Category as PresetCategoryType } from '../types';
+import { format, getYear, getMonth, parseISO, endOfDay, startOfDay } from 'date-fns'; 
 import { toZonedTime } from 'date-fns-tz';
 import { useToast } from '../hooks/useToast';
 import ExpenseTable from '../components/Expenses/ExpenseTable'; 
-import { Loader2, Filter, CalendarDays, Download } from 'lucide-react'; 
-import Select from '../components/ui/Select'; 
+import AdvancedExpenseFilters from '../components/Filters/AdvancedExpenseFilters';
+import { Loader2, CalendarDays, Download } from 'lucide-react'; 
 import Button from '../components/ui/Button'; 
 import { exportToPdf } from '../utils/exportUtils'; 
+import { useDebounce } from '../hooks/useDebounce'; 
+
+const presetCategories: PresetCategoryType[] = [
+  { id: 'bills', name: 'Bills' },
+  { id: 'petrol', name: 'Petrol' },
+  { id: 'food', name: 'Food' },
+  { id: 'groceries', name: 'Groceries' },
+  { id: 'online_shopping', name: 'Online Shopping' },
+];
+
 
 const HistoryPage: React.FC = () => {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
-  const [filteredExpenses, setFilteredExpenses] = useState<Expense[]>([]);
+  const [filteredAndSortedExpenses, setFilteredAndSortedExpenses] = useState<Expense[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { showToast } = useToast();
 
   const timeZone = 'Asia/Kolkata';
-  const nowInIST = toZonedTime(new Date(), timeZone);
+  const nowInISTForDefaults = toZonedTime(new Date(), timeZone);
+  const defaultDisplayYear = getYear(nowInISTForDefaults);
+  const defaultDisplayMonth = getMonth(nowInISTForDefaults) + 1;
 
-  const currentYear = getYear(nowInIST);
-  const currentMonth = getMonth(nowInIST) + 1; 
 
-  const [selectedYear, setSelectedYear] = useState<number>(currentYear);
-  const [selectedMonth, setSelectedMonth] = useState<number>(currentMonth); 
+  const initialFilters: ExpenseFilterState = {
+    searchTerm: '',
+    selectedYear: defaultDisplayYear, 
+    selectedMonth: defaultDisplayMonth, 
+    startDate: '',
+    endDate: '',
+    category: '',
+    tag: '',
+    minAmount: '',
+    maxAmount: '',
+  };
+
+  const initialSort: SortState = {
+    sortBy: 'expense_date',
+    sortOrder: 'desc',
+  };
+
+  const [activeFilters, setActiveFilters] = useState<Partial<ExpenseFilterState>>(initialFilters);
+  const [activeSort, setActiveSort] = useState<SortState>(initialSort);
+
+  const debouncedSearchTerm = useDebounce(activeFilters.searchTerm || '', 500);
+  const debouncedMinAmount = useDebounce(activeFilters.minAmount || '', 500);
+  const debouncedMaxAmount = useDebounce(activeFilters.maxAmount || '', 500);
+
 
   const fetchAllExpenses = useCallback(async () => { 
     if (!user) return;
@@ -33,12 +65,17 @@ const HistoryPage: React.FC = () => {
     try {
       const { data, error } = await supabase
         .from('expenses')
-        .select('*, tags(id, name)') // Fetch related tags
+        .select('*, tags(id, name), expense_split_details(*)') // Fetch related tags and split details
         .eq('user_id', user.id)
-        .order('expense_date', { ascending: false });
+        .order('expense_date', { ascending: false }); 
 
       if (error) throw error;
-      setAllExpenses((data || []).map(exp => ({...exp, tags: exp.tags || []})) as Expense[]);
+      setAllExpenses((data || []).map(exp => ({
+          ...exp, 
+          tags: exp.tags || [],
+          expense_split_details: exp.expense_split_details || []
+        })) as Expense[]
+      );
     } catch (error: any) {
       console.error("Error fetching all expenses:", error);
       showToast("Failed to load expense history.", "error");
@@ -52,39 +89,101 @@ const HistoryPage: React.FC = () => {
   }, [fetchAllExpenses]); 
 
   useEffect(() => {
-    if (allExpenses.length > 0) {
-      let newFilteredExpenses = allExpenses;
-      if (selectedYear !== 0) { 
-        newFilteredExpenses = newFilteredExpenses.filter(exp => {
-          const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
-          return getYear(expenseDateInIST) === selectedYear;
-        });
-      }
-      if (selectedMonth !== 0) { 
-        newFilteredExpenses = newFilteredExpenses.filter(exp => {
-          const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
-          return getMonth(expenseDateInIST) + 1 === selectedMonth;
-        });
-      }
-      setFilteredExpenses(newFilteredExpenses);
-    } else {
-        setFilteredExpenses([]);
-    }
-  }, [allExpenses, selectedYear, selectedMonth, timeZone]);
+    let processedExpenses = [...allExpenses];
 
-  const years = useMemo(() => {
-    if (allExpenses.length === 0 && !isLoading) return [currentYear]; 
-    const expenseYears = new Set(allExpenses.map(exp => getYear(toZonedTime(new Date(exp.expense_date), timeZone))));
-    if (!expenseYears.has(currentYear)) { 
-        expenseYears.add(currentYear);
+    if (activeFilters.startDate) {
+        const localStartDate = parseISO(activeFilters.startDate);
+        const startUTC = startOfDay(localStartDate).toISOString(); 
+        processedExpenses = processedExpenses.filter(exp => exp.expense_date >= startUTC);
     }
-    return Array.from(expenseYears).sort((a, b) => b - a);
-  }, [allExpenses, currentYear, isLoading, timeZone]);
+    if (activeFilters.endDate) {
+        const localEndDate = parseISO(activeFilters.endDate);
+        const endUTC = endOfDay(localEndDate).toISOString(); 
+        processedExpenses = processedExpenses.filter(exp => exp.expense_date <= endUTC);
+    }
+    
+    if (!activeFilters.startDate && !activeFilters.endDate) {
+        if (activeFilters.selectedYear && activeFilters.selectedYear !== 0) {
+            processedExpenses = processedExpenses.filter(exp => {
+                const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
+                return getYear(expenseDateInIST) === activeFilters.selectedYear;
+            });
+        }
+        if (activeFilters.selectedMonth && activeFilters.selectedMonth !== 0) {
+            processedExpenses = processedExpenses.filter(exp => {
+                const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
+                return getMonth(expenseDateInIST) + 1 === activeFilters.selectedMonth;
+            });
+        }
+    }
 
-  const months = [
-    { value: 0, label: 'All Months' },
-    ...Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: format(new Date(2000, i, 1), 'MMMM') }))
-  ];
+    if (activeFilters.category) {
+        processedExpenses = processedExpenses.filter(exp => exp.category === activeFilters.category);
+    }
+    if (activeFilters.tag) {
+        processedExpenses = processedExpenses.filter(exp => exp.tags?.some(t => t.name === activeFilters.tag));
+    }
+    
+    if (debouncedMinAmount) {
+        const min = parseFloat(debouncedMinAmount);
+        if (!isNaN(min)) {
+            processedExpenses = processedExpenses.filter(exp => exp.amount >= min);
+        }
+    }
+    if (debouncedMaxAmount) {
+        const max = parseFloat(debouncedMaxAmount);
+        if (!isNaN(max)) {
+            processedExpenses = processedExpenses.filter(exp => exp.amount <= max);
+        }
+    }
+    if (debouncedSearchTerm.trim() !== '') {
+      const lowerSearchTerm = debouncedSearchTerm.toLowerCase();
+      processedExpenses = processedExpenses.filter(exp => 
+        exp.category.toLowerCase().includes(lowerSearchTerm) ||
+        (exp.sub_category && exp.sub_category.toLowerCase().includes(lowerSearchTerm)) ||
+        (exp.description && exp.description.toLowerCase().includes(lowerSearchTerm)) ||
+        (exp.amount.toString().includes(lowerSearchTerm)) || 
+        (exp.tags && exp.tags.some(tag => tag.name.toLowerCase().includes(lowerSearchTerm)))
+      );
+    }
+
+    if (activeSort.sortBy) {
+      processedExpenses.sort((a, b) => {
+        let valA, valB;
+        switch (activeSort.sortBy) {
+          case 'expense_date':
+            valA = new Date(a.expense_date).getTime();
+            valB = new Date(b.expense_date).getTime();
+            break;
+          case 'amount':
+            valA = a.amount;
+            valB = b.amount;
+            break;
+          case 'category':
+            valA = a.category.toLowerCase();
+            valB = b.category.toLowerCase();
+            break;
+          default:
+            return 0;
+        }
+
+        if (valA < valB) return activeSort.sortOrder === 'asc' ? -1 : 1;
+        if (valA > valB) return activeSort.sortOrder === 'asc' ? 1 : -1;
+        return 0;
+      });
+    }
+
+    setFilteredAndSortedExpenses(processedExpenses);
+  }, [allExpenses, activeFilters, activeSort, timeZone, debouncedSearchTerm, debouncedMinAmount, debouncedMaxAmount]);
+
+
+  const handleFilterChange = useCallback((newFilters: Partial<ExpenseFilterState>) => {
+    setActiveFilters(prev => ({ ...prev, ...newFilters }));
+  }, []);
+
+  const handleSortChange = useCallback((newSort: SortState) => {
+    setActiveSort(newSort);
+  }, []);
   
   const handleExpenseUpdated = (_updatedExpense: Expense) => {
     fetchAllExpenses(); 
@@ -96,19 +195,34 @@ const HistoryPage: React.FC = () => {
     showToast("Expense deleted successfully!", "success");
   };
 
-  const totalForSelection = filteredExpenses.reduce((sum, exp) => sum + exp.amount, 0);
-  const selectionPeriod = selectedMonth === 0 
-    ? `Year ${selectedYear}` 
-    : `${months.find(m => m.value === selectedMonth)?.label} ${selectedYear}`;
+  const totalForSelection = filteredAndSortedExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+  
+  const getSelectionPeriodText = () => {
+    if (activeFilters.startDate && activeFilters.endDate) {
+        return `${format(parseISO(activeFilters.startDate), 'dd MMM yy')} - ${format(parseISO(activeFilters.endDate), 'dd MMM yy')}`;
+    }
+    if (activeFilters.startDate) return `From ${format(parseISO(activeFilters.startDate), 'dd MMM yy')}`;
+    if (activeFilters.endDate) return `Until ${format(parseISO(activeFilters.endDate), 'dd MMM yy')}`;
+    
+    const yearToUse = activeFilters.selectedYear || defaultDisplayYear;
+    const monthToUse = activeFilters.selectedMonth || defaultDisplayMonth;
+
+    const monthLabel = monthToUse !== 0 
+                       ? format(new Date(yearToUse, monthToUse -1, 1), 'MMMM') 
+                       : '';
+    return monthLabel ? `${monthLabel} ${yearToUse}` : `Year ${yearToUse}`;
+  };
+  const selectionPeriod = getSelectionPeriodText();
+
 
   const handleExportPdf = () => {
-    if(filteredExpenses.length === 0) {
+    if(filteredAndSortedExpenses.length === 0) {
         showToast("No data to export for the selected period.", "info");
         return;
     }
-    const fileName = `Expense_History_${selectionPeriod.replace(/ /g, '_')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    const fileName = `Expense_History_${selectionPeriod.replace(/ /g, '_').replace(/-/g, 'to')}_${format(new Date(), 'yyyyMMdd')}.pdf`;
     const title = `Expense History for ${selectionPeriod}`;
-    exportToPdf(filteredExpenses, fileName, title, timeZone);
+    exportToPdf(filteredAndSortedExpenses, fileName, title, timeZone);
     showToast("PDF export started.", "success");
   };
 
@@ -116,29 +230,25 @@ const HistoryPage: React.FC = () => {
   return (
     <div className="space-y-8">
       <div className="content-card"> 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Expense History</h1>
-            <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto"> 
-                <Filter size={20} className="text-gray-500 dark:text-dark-text-secondary hidden sm:block" /> 
-                <Select
-                    value={selectedYear.toString()}
-                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    options={years.map(y => ({ value: y.toString(), label: y.toString() }))}
-                    className="flex-grow sm:flex-grow-0 sm:w-32" 
-                />
-                <Select
-                    value={selectedMonth.toString()}
-                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    options={months}
-                    className="flex-grow sm:flex-grow-0 sm:w-40" 
-                />
-            </div>
         </div>
-         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
+
+        <AdvancedExpenseFilters 
+            initialFilters={initialFilters}
+            onFilterChange={handleFilterChange}
+            initialSort={initialSort}
+            onSortChange={handleSortChange}
+            presetCategories={presetCategories}
+        />
+
+         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 pt-4 border-t border-color">
             <p className="text-lg text-gray-600 dark:text-dark-text-secondary">
-                Total for {selectionPeriod}: <span className="font-bold text-primary-600 dark:text-dark-primary">₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                Displaying {filteredAndSortedExpenses.length} of {allExpenses.length} expenses. <br/>
+                Total for selection: 
+                <span className="font-bold text-primary-600 dark:text-dark-primary"> ₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
             </p>
-            {filteredExpenses.length > 0 && (
+            {filteredAndSortedExpenses.length > 0 && (
                 <div className="flex space-x-2 mt-2 sm:mt-0">
                     <Button onClick={handleExportPdf} variant="outline" size="sm">
                         <Download size={16} className="mr-2" /> PDF
@@ -152,16 +262,16 @@ const HistoryPage: React.FC = () => {
             <Loader2 className="h-8 w-8 animate-spin text-primary-500 dark:text-dark-primary" />
             <p className="ml-3 text-gray-500 dark:text-dark-text-secondary">Loading history...</p>
           </div>
-        ) : filteredExpenses.length > 0 ? (
+        ) : filteredAndSortedExpenses.length > 0 ? (
           <ExpenseTable
-            expenses={filteredExpenses}
+            expenses={filteredAndSortedExpenses}
             onEdit={handleExpenseUpdated}
             onDelete={handleExpenseDeleted}
           />
         ) : (
           <div className="text-center text-gray-500 dark:text-dark-text-secondary py-10 space-y-2">
             <CalendarDays size={48} className="mx-auto text-gray-400 dark:text-gray-500" />
-            <p>No expenses found for the selected period.</p>
+            <p>No expenses found {activeFilters.searchTerm ? `matching "${activeFilters.searchTerm}"` : 'for the selected criteria'}.</p>
             {allExpenses.length === 0 && !isLoading && <p className="text-sm">You haven't recorded any expenses yet.</p>}
           </div>
         )}

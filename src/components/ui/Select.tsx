@@ -13,6 +13,7 @@ interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   prompt?: string; 
   icon?: React.ReactNode;
   containerClassName?: string;
+  hasExternalButton?: boolean;
 }
 
 const SelectUI: React.FC<SelectProps> = ({ 
@@ -23,6 +24,7 @@ const SelectUI: React.FC<SelectProps> = ({
   icon,
   containerClassName,
   className,
+  hasExternalButton,
   ...props
 }) => {
   const selectId = id || props.name;
