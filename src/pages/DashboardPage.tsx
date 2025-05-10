@@ -155,7 +155,7 @@ const DashboardPage: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div id="summary-cards-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <SummaryCard title="Total Income" amount={totalIncome} icon={<TrendingUp className="text-green-500"/>} color="text-green-600 dark:text-green-400" />
         <SummaryCard title="Total Expenses" amount={totalExpenses} icon={<TrendingDown className="text-red-500"/>} color="text-red-600 dark:text-red-400" />
         <SummaryCard title="Net Flow" amount={netFlow} icon={<PiggyBank className={netFlow >= 0 ? "text-blue-500 dark:text-blue-400" : "text-orange-500 dark:text-orange-400"}/>} color={netFlow >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"} />
@@ -228,7 +228,7 @@ interface SummaryCardProps {
 }
 const SummaryCard: React.FC<SummaryCardProps> = ({ title, amount, icon, color }) => (
     <div className="content-card flex items-center space-x-4"> 
-        <div className={`p-3 rounded-full bg-opacity-20 ${color.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-')}`}>
+        <div className={`p-3 rounded-full bg-opacity-0 dark:bg-opacity-5 ${color.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-')}`}>
              {icon}
         </div>
         <div>
