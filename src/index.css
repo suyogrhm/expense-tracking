@@ -95,3 +95,8 @@ textarea#splitNote {
   border: 1px solid;
   border-radius: 9px;
 }
+/* @media (min-width: 768px){
+      #summary-cards-grid {
+        grid-template-columns: repeat(3,minmax(0,1fr));
+    }
+} */
