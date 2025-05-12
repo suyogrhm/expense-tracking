@@ -5,7 +5,6 @@ import type { Expense, Income } from '../types'; // Ensure Tag is imported if us
 import { formatInTimeZone, format } from 'date-fns-tz';
 import { isValid, parseISO } from 'date-fns';
 
-type Color = [number, number, number];
 
 function isExpense(item: Expense | Income): item is Expense {
   return (item as Expense).category !== undefined;
