@@ -182,58 +182,40 @@ const TransactionsPage: React.FC = () => {
         ) : filteredTransactions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
+              <thead className="bg-emerald-500 text-white">
                 <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category/Source</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tags</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Type</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Date</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Category/Source</th>
+                  <th className="px-6 py-3 text-right text-sm font-semibold uppercase tracking-wider">Amount (₹)</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Description</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Tags</th>
                 </tr>
               </thead>
               <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
                 {filteredTransactions.map((transaction, index) => (
-                  <tr key={`${transaction.type}-${transaction.id}-${index}`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {transaction.type === 'income' ? (
-                        <span className="flex items-center text-green-600 dark:text-green-400">
-                          <ArrowUpCircle size={16} className="mr-1" /> Income
-                        </span>
-                      ) : (
-                        <span className="flex items-center text-red-600 dark:text-red-400">
-                          <ArrowDownCircle size={16} className="mr-1" /> Expense
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {format(new Date(transaction.type === 'expense' ? transaction.expense_date : transaction.income_date), 'dd MMM yyyy')}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
-                      {transaction.description || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
-                      {transaction.type === 'expense' ? transaction.category : transaction.source}
+                  <tr key={`${transaction.type}-${transaction.id}-${index}`} 
+                      className={transaction.type === 'income' ? 'text-green-600' : 'text-red-600'}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm">
+                      {transaction.type === 'income' ? 'Income' : 'Expense'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                        ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                      </span>
+                      {format(new Date(transaction.type === 'expense' ? transaction.expense_date : transaction.income_date), 'dd MMM yy, hh:mm a')}
                     </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
+                    <td className="px-6 py-4 text-sm">
+                      {transaction.type === 'expense' ? transaction.category : transaction.source}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right">
+                      {transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
+                      {transaction.description || 'N/A'}
+                    </td>
+                    <td className="px-6 py-4 text-sm">
                       {transaction.tags && transaction.tags.length > 0 ? (
-                        <div className="flex flex-wrap gap-1">
-                          {transaction.tags.map(tag => (
-                            <span
-                              key={tag.id}
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
-                            >
-                              {tag.name}
-                            </span>
-                          ))}
-                        </div>
+                        transaction.tags.map(tag => tag.name).join(', ')
                       ) : (
-                        '-'
+                        'N/A'
                       )}
                     </td>
                   </tr>

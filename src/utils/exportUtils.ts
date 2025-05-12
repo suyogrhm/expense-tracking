@@ -1,13 +1,33 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import type { CellInput } from 'jspdf-autotable';
 import type { Expense, Income } from '../types'; // Ensure Tag is imported if used in formatting
 // Ensure Tag is imported if used in formatting
-import { formatInTimeZone } from 'date-fns-tz';
+import { formatInTimeZone, format } from 'date-fns-tz';
+import { isValid, parseISO } from 'date-fns';
 
+type Color = [number, number, number];
 
 function isExpense(item: Expense | Income): item is Expense {
   return (item as Expense).category !== undefined;
 }
+
+const formatDate = (dateStr: string | undefined | null, timeZone: string): string => {
+  if (!dateStr) {
+    return 'No Date';
+  }
+  
+  try {
+    const date = parseISO(dateStr);
+    if (!isValid(date)) {
+      return 'Invalid Date';
+    }
+    return formatInTimeZone(date, timeZone, 'dd MMM yy, hh:mm a');
+  } catch (error) {
+    console.error('Error formatting date:', dateStr, error);
+    return 'Invalid Date';
+  }
+};
 
 export const exportToPdf = (
   data: (Expense | Income)[],
@@ -23,76 +43,81 @@ export const exportToPdf = (
 
   try {
     const doc = new jsPDF();
-    let tableColumn: string[];
+    const tableColumn = ["Type", "Date", "Category/Source", "Amount", "Description", "Tags"];
     const tableRows: (string | number)[][] = [];
 
-    const isExpenseData = data.length > 0 && isExpense(data[0]);
+    // Add current time to the report
+    const currentTime = format(new Date(), 'dd MMM yyyy at HH:mm');
+    const subTitle = `Generated on ${currentTime}`;
 
-    if (isExpenseData) {
-      tableColumn = ["Date", "Category", "Sub-Cat", "Amount", "Description", "Tags", "Split Details"];
-      (data as Expense[]).forEach(exp => {
-        const tagsString = exp.tags?.map(t => t.name).join(', ') || 'N/A';
-        let splitDetailsString = 'No';
-        if (exp.is_split && exp.expense_split_details && exp.expense_split_details.length > 0) {
-          splitDetailsString = exp.expense_split_details
-            .map(detail => `${detail.person_name}: ${detail.amount.toLocaleString('en-IN')}`)
-            .join('\n'); // Newline for PDF multi-line cell
-          if (exp.split_note) {
-            splitDetailsString += `\nNote: ${exp.split_note}`;
-          }
-        } else if (exp.is_split) {
-          splitDetailsString = 'Yes (details not specified)';
-          if (exp.split_note) {
-            splitDetailsString += `\nNote: ${exp.split_note}`;
-          }
-        }
+    data.forEach(item => {
+      const isExpenseItem = isExpense(item);
+      const type = isExpenseItem ? 'Expense' : 'Income';
+      const date = formatDate(isExpenseItem ? item.expense_date : item.income_date, timeZone);
+      const category = isExpenseItem ? item.category : item.source;
+      const amount = item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
+      const description = item.description || 'N/A';
+      const tagsString = item.tags?.map(t => t.name).join(', ') || 'N/A';
 
-        tableRows.push([
-          formatInTimeZone(new Date(exp.expense_date), timeZone, 'dd MMM yy, hh:mm a'),
-          exp.category,
-          exp.sub_category || 'N/A',
-          exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          exp.description || 'N/A',
-          tagsString,
-          splitDetailsString,
-        ]);
-      });
-    } else { // Assuming Income data
-      tableColumn = ["Date", "Source", "Amount", "Description", "Tags"];
-      (data as Income[]).forEach(inc => {
-        const tagsString = inc.tags?.map(t => t.name).join(', ') || 'N/A';
-        tableRows.push([
-          formatInTimeZone(new Date(inc.income_date), timeZone, 'dd MMM yy, hh:mm a'),
-          inc.source,
-          inc.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-          inc.description || 'N/A',
-          tagsString,
-        ]);
-      });
-    }
+      tableRows.push([
+        type,
+        date,
+        category,
+        amount,
+        description,
+        tagsString,
+      ]);
+    });
 
-
+    // Add title and subtitle
     doc.setFontSize(18);
-    doc.text(reportTitle, 14, 22);
+    doc.text(reportTitle, 14, 20);
     doc.setFontSize(11);
     doc.setTextColor(100);
+    doc.text(subTitle, 14, 28);
 
     autoTable(doc, {
       head: [tableColumn],
       body: tableRows,
-      startY: 30,
+      startY: 35,
       theme: 'grid',
-      headStyles: { fillColor: [22, 160, 133] }, // Teal-like color for header
+      headStyles: { 
+        fillColor: [26, 188, 156], // Emerald green color
+        textColor: 255,
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'left'
+      },
       styles: {
-        fontSize: 8, // Reduced font size for more data
-        cellPadding: 1.5,
-        overflow: 'linebreak' // Allow text to wrap within cells
+        fontSize: 9,
+        cellPadding: 3,
+        lineColor: [200, 200, 200],
+        lineWidth: 0.1
       },
       columnStyles: {
-        2: { halign: isExpenseData ? 'right' : 'left' }, // Amount column for expenses
-        3: { halign: isExpenseData ? 'left' : 'right' }, // Description for expenses, Amount for income
-        // Adjust column widths if necessary, e.g., make description wider
-        // 4: { cellWidth: 'wrap' }, // For description in expenses
+        0: { cellWidth: 'auto' }, // Type
+        1: { cellWidth: 'auto' }, // Date
+        2: { cellWidth: 'auto' }, // Category/Source
+        3: { 
+          cellWidth: 'auto',
+          halign: 'right'
+        }, // Amount
+        4: { cellWidth: 'auto' }, // Description
+        5: { cellWidth: 'auto' } // Tags
+      },
+      alternateRowStyles: {
+        fillColor: [249, 249, 249]
+      },
+      willDrawCell: function(data) {
+        if (data.section === 'body' && data.column.index === 0) {
+          const rowData = data.row.raw as unknown[];
+          const type = rowData[0] as string;
+          if (type === 'Income') {
+            data.cell.styles.textColor = [22, 163, 74]; // Green text for income
+          } else {
+            data.cell.styles.textColor = [220, 38, 38]; // Red text for expense
+          }
+        }
       }
     });
 
