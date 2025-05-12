@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Link, NavLink } from 'react-router-dom'; 
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext'; 
-import { LogOut, LayoutDashboard, History, UserCircle, Wallet, Landmark, Target, Sun, Moon, Settings, ListPlus, Menu, X as CloseIcon } from 'lucide-react';
+import { LogOut, LayoutDashboard, History, UserCircle, Wallet, Landmark, Target, Sun, Moon, Settings, ListPlus, Menu, X as CloseIcon, Upload } from 'lucide-react';
 import Button from '../ui/Button'; 
 
 interface NavLinkItemProps {
@@ -99,7 +99,8 @@ const Navbar: React.FC = () => {
             <NavLinkItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />
             <NavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" /> 
             <NavLinkItem to="/history" icon={<History size={18} />} label="Expenses" /> 
-            <NavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" /> 
+            <NavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" />
+            <NavLinkItem to="/import" icon={<Upload size={18} />} label="Import CSV" />
             
             <Button onClick={toggleTheme} variant="ghost" size="icon" className="text-primary-100 hover:bg-primary-600 dark:text-gray-300 dark:hover:bg-gray-700" aria-label="Toggle theme">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
@@ -170,6 +171,7 @@ const Navbar: React.FC = () => {
               <MobileNavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" onClick={() => setIsMobileMenuOpen(false)} />
               <MobileNavLinkItem to="/history" icon={<History size={18} />} label="Expenses" onClick={() => setIsMobileMenuOpen(false)} />
               <MobileNavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" onClick={() => setIsMobileMenuOpen(false)} />
+              <MobileNavLinkItem to="/import" icon={<Upload size={18} />} label="Import CSV" onClick={() => setIsMobileMenuOpen(false)} />
             </div>
             {user && (
               <div className="pt-4 pb-3 border-t border-gray-200 dark:border-gray-700">

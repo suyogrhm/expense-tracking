@@ -5,7 +5,7 @@ import type { UserDefinedCategory, Tag as TagType, Category as PresetCategoryTyp
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
-import { Filter as RotateCcw, Search, CalendarDays, Tag as TagIconLucide, ListFilter, ChevronDown, ChevronUp } from 'lucide-react';
+import { Filter as RotateCcw, Search, CalendarDays, Tag as TagIconLucide, ListFilter, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface AdvancedExpenseFiltersProps {
   initialFilters: Partial<ExpenseFilterState>; 
@@ -32,6 +32,8 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
   const [tag, setTag] = useState(initialFilters.tag || '');
   const [minAmount, setMinAmount] = useState(initialFilters.minAmount || '');
   const [maxAmount, setMaxAmount] = useState(initialFilters.maxAmount || '');
+  const [selectedYear, setSelectedYear] = useState(initialFilters.selectedYear || 0);
+  const [selectedMonth, setSelectedMonth] = useState(initialFilters.selectedMonth || 0);
 
   const [sortBy, setSortBy] = useState<SortState['sortBy']>(initialSort.sortBy || 'expense_date');
   const [sortOrder, setSortOrder] = useState<SortState['sortOrder']>(initialSort.sortOrder || 'desc');
@@ -83,9 +85,11 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
       tag,
       minAmount, 
       maxAmount, 
+      selectedYear,
+      selectedMonth,
     });
     onSortChange({ sortBy, sortOrder });
-  }, [searchTerm, startDate, endDate, category, tag, minAmount, maxAmount, sortBy, sortOrder, onFilterChange, onSortChange]);
+  }, [searchTerm, startDate, endDate, category, tag, minAmount, maxAmount, selectedYear, selectedMonth, sortBy, sortOrder, onFilterChange, onSortChange]);
 
   // Call applyFiltersAndSort whenever a filter or sort option changes
   // The parent component (HistoryPage) will use useDebounce for text inputs like searchTerm, minAmount, maxAmount
@@ -93,8 +97,7 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
     applyFiltersAndSort();
   }, [applyFiltersAndSort]);
 
-
-  const handleClearFilters = () => {
+  const clearFilters = () => {
     setSearchTerm('');
     setStartDate('');
     setEndDate('');
@@ -102,13 +105,27 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
     setTag('');
     setMinAmount('');
     setMaxAmount('');
+    setSelectedYear(0);
+    setSelectedMonth(0);
     setSortBy('expense_date');
     setSortOrder('desc');
     // Trigger parent update with cleared filters
     onFilterChange({ 
-        searchTerm: '', startDate: '', endDate: '', category: '', tag: '', minAmount: '', maxAmount: ''
+        searchTerm: '', startDate: '', endDate: '', category: '', tag: '', minAmount: '', maxAmount: '', selectedYear: 0, selectedMonth: 0
     });
     onSortChange({ sortBy: 'expense_date', sortOrder: 'desc' });
+  };
+
+  const hasActiveFilters = () => {
+    return searchTerm !== '' ||
+      startDate !== '' ||
+      endDate !== '' ||
+      category !== '' ||
+      tag !== '' ||
+      minAmount !== '' ||
+      maxAmount !== '' ||
+      selectedYear !== 0 ||
+      selectedMonth !== 0;
   };
 
   const sortOptionsList = [
@@ -123,15 +140,48 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
   ];
 
   return (
-    <div className="mb-6 p-4 border border-color rounded-lg bg-gray-50 dark:bg-dark-card dark:bg-opacity-50">
-      <div className="flex justify-between items-center mb-4 cursor-pointer" onClick={() => setIsExpanded(!isExpanded)}>
-        <div className="flex items-center">
-            <ListFilter size={20} className="mr-2 text-primary-600 dark:text-dark-primary" />
-            <h3 className="text-lg font-semibold">Advanced Filters & Sort</h3>
+    <div className="bg-white dark:bg-dark-card rounded-lg shadow p-4 mb-4">
+      <div className="flex justify-between items-center">
+        <div className="flex items-center space-x-2">
+          <button
+            onClick={() => setIsExpanded(!isExpanded)}
+            className="text-gray-700 dark:text-dark-text hover:text-primary-600 dark:hover:text-primary-400 font-medium flex items-center"
+          >
+            Filters
+            {isExpanded ? <ChevronUp className="ml-1 h-4 w-4" /> : <ChevronDown className="ml-1 h-4 w-4" />}
+          </button>
+          {hasActiveFilters() && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearFilters}
+              className="text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-500"
+            >
+              <X className="h-4 w-4 mr-1" />
+              Clear Filters
+            </Button>
+          )}
         </div>
-        <Button variant="ghost" size="icon" aria-label={isExpanded ? "Hide filters" : "Show filters"}>
-          {isExpanded ? <ChevronUp size={20} /> : <ChevronDown size={20} />}
-        </Button>
+        <div className="flex items-center space-x-2">
+          <Select
+            value={sortBy}
+            onChange={(value) => {
+              setSortBy(value as SortState['sortBy']);
+              onSortChange({ sortBy: value as SortState['sortBy'], sortOrder });
+            }}
+            options={sortOptionsList}
+            className="w-32"
+          />
+          <Select
+            value={sortOrder}
+            onChange={(value) => {
+              setSortOrder(value as SortState['sortOrder']);
+              onSortChange({ sortBy, sortOrder: value as SortState['sortOrder'] });
+            }}
+            options={sortOrderOptionsList}
+            className="w-32"
+          />
+        </div>
       </div>
       
       <div className="mb-4">
@@ -201,24 +251,19 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
                     min="0"
                 />
                 <Select
-                    id="sortBy"
-                    label="Sort By"
-                    value={sortBy}
-                    onChange={(e) => setSortBy(e.target.value as SortState['sortBy'])}
-                    options={sortOptionsList}
+                    id="selectedYear"
+                    label="Year"
+                    value={selectedYear}
+                    onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                    options={Array.from({ length: 10 }, (_, i) => ({ value: i + 2024, label: i + 2024 }))}
                 />
                 <Select
-                    id="sortOrder"
-                    label="Order"
-                    value={sortOrder}
-                    onChange={(e) => setSortOrder(e.target.value as SortState['sortOrder'])}
-                    options={sortOrderOptionsList}
+                    id="selectedMonth"
+                    label="Month"
+                    value={selectedMonth}
+                    onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                    options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: i + 1 }))}
                 />
-            </div>
-            <div className="flex justify-end space-x-3 pt-2">
-                <Button onClick={handleClearFilters} variant="outline" size="sm">
-                    <RotateCcw size={16} className="mr-2" /> Clear All
-                </Button>
             </div>
         </div>
       )}

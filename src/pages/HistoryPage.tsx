@@ -30,14 +30,14 @@ const HistoryPage: React.FC = () => {
 
   const timeZone = 'Asia/Kolkata';
   const nowInISTForDefaults = toZonedTime(new Date(), timeZone);
-  const defaultDisplayYear = getYear(nowInISTForDefaults);
-  const defaultDisplayMonth = getMonth(nowInISTForDefaults) + 1;
+  const defaultDisplayYear = 0;
+  const defaultDisplayMonth = 0;
 
 
   const initialFilters: ExpenseFilterState = {
     searchTerm: '',
-    selectedYear: defaultDisplayYear, 
-    selectedMonth: defaultDisplayMonth, 
+    selectedYear: defaultDisplayYear,
+    selectedMonth: defaultDisplayMonth,
     startDate: '',
     endDate: '',
     category: '',
