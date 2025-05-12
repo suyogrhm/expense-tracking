@@ -5,7 +5,7 @@ import type { UserDefinedCategory, Tag as TagType, Category as PresetCategoryTyp
 import Input from '../ui/Input';
 import Select from '../ui/Select';
 import Button from '../ui/Button';
-import { Filter as RotateCcw, Search, CalendarDays, Tag as TagIconLucide, ListFilter, ChevronDown, ChevronUp, X } from 'lucide-react';
+import { Search, CalendarDays, Tag as TagIconLucide, ChevronDown, ChevronUp, X } from 'lucide-react';
 
 interface AdvancedExpenseFiltersProps {
   initialFilters: Partial<ExpenseFilterState>; 
@@ -165,18 +165,20 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
         <div className="flex items-center space-x-2">
           <Select
             value={sortBy}
-            onChange={(value) => {
-              setSortBy(value as SortState['sortBy']);
-              onSortChange({ sortBy: value as SortState['sortBy'], sortOrder });
+            onChange={(e) => {
+              const value = e.target.value as SortState['sortBy'];
+              setSortBy(value);
+              onSortChange({ sortBy: value, sortOrder });
             }}
             options={sortOptionsList}
             className="w-32"
           />
           <Select
             value={sortOrder}
-            onChange={(value) => {
-              setSortOrder(value as SortState['sortOrder']);
-              onSortChange({ sortBy, sortOrder: value as SortState['sortOrder'] });
+            onChange={(e) => {
+              const value = e.target.value as SortState['sortOrder'];
+              setSortOrder(value);
+              onSortChange({ sortBy, sortOrder: value });
             }}
             options={sortOrderOptionsList}
             className="w-32"
@@ -253,16 +255,22 @@ const AdvancedExpenseFilters: React.FC<AdvancedExpenseFiltersProps> = ({
                 <Select
                     id="selectedYear"
                     label="Year"
-                    value={selectedYear}
+                    value={selectedYear.toString()}
                     onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                    options={Array.from({ length: 10 }, (_, i) => ({ value: i + 2024, label: i + 2024 }))}
+                    options={Array.from({ length: 10 }, (_, i) => ({ 
+                      value: (i + 2024).toString(), 
+                      label: (i + 2024).toString() 
+                    }))}
                 />
                 <Select
                     id="selectedMonth"
                     label="Month"
-                    value={selectedMonth}
+                    value={selectedMonth.toString()}
                     onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                    options={Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: i + 1 }))}
+                    options={Array.from({ length: 12 }, (_, i) => ({ 
+                      value: (i + 1).toString(), 
+                      label: (i + 1).toString() 
+                    }))}
                 />
             </div>
         </div>
