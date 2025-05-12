@@ -99,6 +99,7 @@ const Navbar: React.FC = () => {
             <NavLinkItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" />
             <NavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" /> 
             <NavLinkItem to="/history" icon={<History size={18} />} label="Expenses" /> 
+            <NavLinkItem to="/transactions" icon={<Wallet size={18} />} label="Transactions" />
             <NavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" />
             <NavLinkItem to="/import" icon={<Upload size={18} />} label="Import CSV" />
             
@@ -170,6 +171,7 @@ const Navbar: React.FC = () => {
               <MobileNavLinkItem to="/dashboard" icon={<LayoutDashboard size={18} />} label="Dashboard" onClick={() => setIsMobileMenuOpen(false)} />
               <MobileNavLinkItem to="/income" icon={<Landmark size={18} />} label="Income" onClick={() => setIsMobileMenuOpen(false)} />
               <MobileNavLinkItem to="/history" icon={<History size={18} />} label="Expenses" onClick={() => setIsMobileMenuOpen(false)} />
+              <MobileNavLinkItem to="/transactions" icon={<Wallet size={18} />} label="Transactions" onClick={() => setIsMobileMenuOpen(false)} />
               <MobileNavLinkItem to="/budgets" icon={<Target size={18} />} label="Budgets" onClick={() => setIsMobileMenuOpen(false)} />
               <MobileNavLinkItem to="/import" icon={<Upload size={18} />} label="Import CSV" onClick={() => setIsMobileMenuOpen(false)} />
             </div>

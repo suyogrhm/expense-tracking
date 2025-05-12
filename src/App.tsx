@@ -9,6 +9,7 @@ import IncomePage from './pages/IncomePage';
 import BudgetsPage from './pages/BudgetsPage'; 
 import UserProfilePage from './pages/UserProfilePage'; 
 import ManageCategoriesPage from './pages/ManageCategoriesPage';
+import TransactionsPage from './pages/TransactionsPage';
 import ProtectedRoute from './components/ProtectedRoute';
 import MainLayout from './components/Layout/MainLayout';
 import AuthLayout from './components/Layout/AuthLayout';
@@ -71,6 +72,7 @@ function App() {
           <Route path="/dashboard" element={<DashboardPage />} />
           <Route path="/history" element={<HistoryPage />} />
           <Route path="/income" element={<IncomePage />} /> 
+          <Route path="/transactions" element={<TransactionsPage />} />
           <Route path="/budgets" element={<BudgetsPage />} /> 
           <Route path="/profile" element={<UserProfilePage />} /> 
           <Route path="/settings/categories" element={<ManageCategoriesPage />} />
