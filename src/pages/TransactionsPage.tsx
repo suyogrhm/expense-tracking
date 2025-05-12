@@ -5,7 +5,7 @@ import type { Expense, Income } from '../types';
 import { useToast } from '../hooks/useToast';
 import { useDebounce } from '../hooks/useDebounce';
 import { format } from 'date-fns';
-import { Download, Loader2, Search as SearchIcon, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Download, Loader2, Search as SearchIcon } from 'lucide-react';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { exportToPdf } from '../utils/exportUtils';
@@ -180,67 +180,121 @@ const TransactionsPage: React.FC = () => {
             <p className="ml-3 text-gray-500 dark:text-dark-text-secondary">Loading transactions...</p>
           </div>
         ) : filteredTransactions.length > 0 ? (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
-              <thead className="bg-gray-50 dark:bg-gray-800">
-                <tr>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Description</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Category/Source</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Amount</th>
-                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tags</th>
-                </tr>
-              </thead>
-              <tbody className="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
-                {filteredTransactions.map((transaction, index) => (
-                  <tr key={`${transaction.type}-${transaction.id}-${index}`}>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {transaction.type === 'income' ? (
-                        <span className="flex items-center text-green-600 dark:text-green-400">
-                          <ArrowUpCircle size={16} className="mr-1" /> Income
-                        </span>
-                      ) : (
-                        <span className="flex items-center text-red-600 dark:text-red-400">
-                          <ArrowDownCircle size={16} className="mr-1" /> Expense
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
-                      {format(new Date(transaction.type === 'expense' ? transaction.expense_date : transaction.income_date), 'dd MMM yyyy')}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
-                      {transaction.description || '-'}
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-900 dark:text-gray-300">
-                      {transaction.type === 'expense' ? transaction.category : transaction.source}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm">
-                      <span className={transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                        ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          <>
+            {/* Desktop Table View */}
+            <div className="hidden md:block overflow-x-auto bg-white dark:bg-dark-card rounded-lg shadow">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                <thead className="bg-emerald-500 text-white">
+                  <tr>
+                    <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Type</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Category/Source</th>
+                    <th className="px-6 py-3 text-right text-sm font-semibold uppercase tracking-wider">Amount (₹)</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-left text-sm font-semibold uppercase tracking-wider">Tags</th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white dark:bg-dark-card divide-y divide-gray-200 dark:divide-gray-700">
+                  {filteredTransactions.map((transaction, index) => (
+                    <tr key={`${transaction.type}-${transaction.id}-${index}`} 
+                        className={`${index % 2 === 0 ? 'bg-white dark:bg-dark-card' : 'bg-gray-50 dark:bg-dark-card'}`}>
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm ${
+                        transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
+                        {transaction.type === 'income' ? 'Income' : 'Expense'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-dark-text">
+                        {format(new Date(transaction.type === 'expense' ? transaction.expense_date : transaction.income_date), 'dd MMM yy, hh:mm a')}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-dark-text">
+                        {transaction.type === 'expense' ? transaction.category : transaction.source}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700 dark:text-dark-text">
+                        {transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-dark-text">
+                        {transaction.description || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-dark-text">
+                        {transaction.tags && transaction.tags.length > 0 ? (
+                          <div className="flex flex-wrap gap-1">
+                            {transaction.tags.map(tag => (
+                              <span key={tag.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
+                                {tag.name}
+                              </span>
+                            ))}
+                          </div>
+                        ) : 'N/A'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Mobile Card View */}
+            <div className="md:hidden space-y-4">
+              {filteredTransactions.map((transaction, index) => (
+                <div key={`${transaction.type}-${transaction.id}-${index}`} 
+                     className="bg-white dark:bg-dark-card rounded-lg shadow p-4 border border-gray-200 dark:border-gray-700">
+                  <div className="flex justify-between items-start mb-3">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      transaction.type === 'income' 
+                        ? 'bg-green-100 dark:bg-green-900/20 text-green-600 dark:text-green-400' 
+                        : 'bg-red-100 dark:bg-red-900/20 text-red-600 dark:text-red-400'
+                    }`}>
+                      {transaction.type === 'income' ? 'Income' : 'Expense'}
+                    </span>
+                    <span className={`text-lg font-semibold ${
+                      transaction.type === 'income' 
+                        ? 'text-green-600 dark:text-green-400' 
+                        : 'text-red-600 dark:text-red-400'
+                    }`}>
+                      ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 dark:text-dark-text-secondary">Date:</span>
+                      <span className="text-gray-700 dark:text-dark-text">
+                        {format(new Date(transaction.type === 'expense' ? transaction.expense_date : transaction.income_date), 'dd MMM yy, hh:mm a')}
                       </span>
-                    </td>
-                    <td className="px-6 py-4 text-sm text-gray-500 dark:text-gray-400">
-                      {transaction.tags && transaction.tags.length > 0 ? (
+                    </div>
+                    
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500 dark:text-dark-text-secondary">
+                        {transaction.type === 'income' ? 'Source:' : 'Category:'}
+                      </span>
+                      <span className="text-gray-700 dark:text-dark-text">
+                        {transaction.type === 'expense' ? transaction.category : transaction.source}
+                      </span>
+                    </div>
+                    
+                    {transaction.description && (
+                      <div className="text-sm">
+                        <span className="text-gray-500 dark:text-dark-text-secondary">Description:</span>
+                        <p className="text-gray-700 dark:text-dark-text mt-1">{transaction.description}</p>
+                      </div>
+                    )}
+                    
+                    {transaction.tags && transaction.tags.length > 0 && (
+                      <div className="text-sm">
+                        <span className="text-gray-500 dark:text-dark-text-secondary block mb-1">Tags:</span>
                         <div className="flex flex-wrap gap-1">
                           {transaction.tags.map(tag => (
-                            <span
-                              key={tag.id}
-                              className="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 dark:bg-gray-800 text-gray-800 dark:text-gray-200"
-                            >
+                            <span key={tag.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
                               {tag.name}
                             </span>
                           ))}
                         </div>
-                      ) : (
-                        '-'
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         ) : (
           <div className="text-center text-gray-500 dark:text-dark-text-secondary py-10">
             <p>No transactions found {debouncedSearchTerm ? `matching "${debouncedSearchTerm}"` : ''}.</p>

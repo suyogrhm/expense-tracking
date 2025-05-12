@@ -4,6 +4,7 @@ import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 import com.getcapacitor.Bridge;
 import android.webkit.WebView;
+import android.webkit.WebSettings;
 import android.webkit.ValueCallback;
 
 public class MainActivity extends BridgeActivity {
@@ -13,6 +14,16 @@ public class MainActivity extends BridgeActivity {
         
         // Enable web view debugging
         WebView.setWebContentsDebuggingEnabled(true);
+        
+        // Configure WebView for responsive design
+        WebView webView = getBridge().getWebView();
+        WebSettings settings = webView.getSettings();
+        settings.setUseWideViewPort(true);
+        settings.setLoadWithOverviewMode(true);
+        settings.setMediaPlaybackRequiresUserGesture(false);
+        settings.setDomStorageEnabled(true);
+        settings.setDatabaseEnabled(true);
+        settings.setJavaScriptEnabled(true);
     }
 
     @Override
