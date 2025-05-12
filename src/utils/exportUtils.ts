@@ -1,6 +1,5 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { CellInput } from 'jspdf-autotable';
 import type { Expense, Income } from '../types'; // Ensure Tag is imported if used in formatting
 // Ensure Tag is imported if used in formatting
 import { formatInTimeZone, format } from 'date-fns-tz';

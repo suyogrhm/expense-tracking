@@ -5,7 +5,7 @@ import type { Expense, Income } from '../types';
 import { useToast } from '../hooks/useToast';
 import { useDebounce } from '../hooks/useDebounce';
 import { format } from 'date-fns';
-import { Download, Loader2, Search as SearchIcon, ArrowUpCircle, ArrowDownCircle } from 'lucide-react';
+import { Download, Loader2, Search as SearchIcon } from 'lucide-react';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import { exportToPdf } from '../utils/exportUtils';
