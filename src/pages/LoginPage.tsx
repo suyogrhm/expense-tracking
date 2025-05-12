@@ -3,8 +3,8 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
-import { Mail, Lock } from 'lucide-react';
-import { useToast } from '../hooks/useToast';
+import { Mail, Lock } from 'lucide-react'; 
+import { useToast } from '../hooks/useToast'; 
 
 const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -18,11 +18,11 @@ const LoginPage: React.FC = () => {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      await login(email, password); // Now expects this to throw on error
       showToast("Login successful!", "success");
-      navigate('/dashboard', { replace: true });
-    } catch (error: any) {
-      console.error('Login failed:', error);
+      navigate('/dashboard', { replace: true }); 
+    } catch (error: any) { 
+      console.error('Login failed on LoginPage:', error);
       showToast(error.message || "Login failed. Please check your credentials.", "error");
     } finally {
       setLoading(false);
@@ -53,7 +53,7 @@ const LoginPage: React.FC = () => {
           placeholder="••••••••"
           required
         />
-        <div className="flex items-center justify-end text-sm">
+        <div className="flex items-center justify-end text-sm"> 
           <Link to="/forgot-password" className="font-medium text-primary-600 dark:text-dark-primary hover:text-primary-500 dark:hover:text-primary-400">
             Forgot your password?
           </Link>
