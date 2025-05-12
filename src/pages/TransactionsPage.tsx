@@ -197,7 +197,7 @@ const TransactionsPage: React.FC = () => {
                 <tbody className="bg-white dark:bg-dark-card divide-y divide-gray-200 dark:divide-gray-700">
                   {filteredTransactions.map((transaction, index) => (
                     <tr key={`${transaction.type}-${transaction.id}-${index}`} 
-                        className={`${index % 2 === 0 ? 'bg-white dark:bg-dark-card' : 'bg-gray-50 dark:bg-dark-card-light'}`}>
+                        className={`${index % 2 === 0 ? 'bg-white dark:bg-dark-card' : 'bg-gray-50 dark:bg-dark-card'}`}>
                       <td className={`px-6 py-4 whitespace-nowrap text-sm ${
                         transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                       }`}>
