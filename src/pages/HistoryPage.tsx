@@ -29,7 +29,6 @@ const HistoryPage: React.FC = () => {
   const { showToast } = useToast();
 
   const timeZone = 'Asia/Kolkata';
-  const nowInISTForDefaults = toZonedTime(new Date(), timeZone);
   const defaultDisplayYear = 0;
   const defaultDisplayMonth = 0;
 
