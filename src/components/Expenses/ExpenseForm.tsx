@@ -424,7 +424,7 @@ const ExpenseForm: React.FC<ExpenseFormProps> = ({ onExpenseAdded, existingExpen
                 variant="ghost" 
                 size="icon" 
                 className="absolute top-1/2 -translate-y-1/2 right-10 p-1 text-gray-400 dark:text-dark-text-secondary hover:text-gray-600 dark:hover:text-gray-300 z-20"
-                style={{ marginTop: '0.125rem' }} 
+                style={{ marginTop: '0.75rem' }} 
                 aria-label="Deselect category"
             >
                 <X size={16} />
