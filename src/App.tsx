@@ -16,6 +16,7 @@ import AuthLayout from './components/Layout/AuthLayout';
 import { Toaster } from './components/ui/Toaster';
 import { SupabaseProvider } from './contexts/SupabaseContext';
 import { CSVImport } from './components/CSVImport';
+import ResetPasswordPage from './pages/ResetPasswordPage';
 
 // Define the navigation history stack
 const navigationStack: string[] = [];
@@ -65,6 +66,7 @@ function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
         </Route>
 
         <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>

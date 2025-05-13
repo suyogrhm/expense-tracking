@@ -53,6 +53,7 @@ const IncomeForm: React.FC<IncomeFormProps> = ({ existingIncome, onIncomeSaved, 
   const allIncomeSourceOptions = useMemo(() => {
     const options = userDefinedIncomeCategories.map(udc => ({ value: udc.name, label: udc.name }));
     const presets = [
+        { value: 'Rent', label: 'Rent' },
         { value: 'Salary', label: 'Salary' },
         { value: 'Freelance', label: 'Freelance' },
         { value: 'Investment', label: 'Investment' },
