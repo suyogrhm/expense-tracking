@@ -12,53 +12,62 @@ const ResetPasswordPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [canSetPassword, setCanSetPassword] = useState(false); // To enable form after event
+  const [canSetPassword, setCanSetPassword] = useState(false);
   const navigate = useNavigate();
   const { showToast } = useToast();
 
   useEffect(() => {
-    // Supabase client automatically handles the hash and triggers onAuthStateChange
-    // for PASSWORD_RECOVERY event. This sets up the session for password update.
-    const { data: authListener } = supabase.auth.onAuthStateChange(async (event) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setCanSetPassword(true); // Enable the form
-        showToast("You can now set your new password.", "info");
-      } else if (event === 'USER_UPDATED') {
-        // This event fires after a successful password update via supabase.auth.updateUser()
-        // Handled in handleSubmit, but good to be aware of.
-      }
-    });
+    let mounted = true; // Handle component unmounting
 
-    // Check if tokens are already in the URL on mount (in case event fires before listener attaches)
-    // Or if user navigates directly with hash.
-    // A more robust check might be needed if issues arise, but onAuthStateChange is generally reliable.
-    if (window.location.hash.includes('access_token') && window.location.hash.includes('type=recovery')) {
-        // This suggests that a password recovery flow is in progress.
-        // The onAuthStateChange listener should pick this up.
-        // If not, manually triggering a session refresh or similar might be an advanced option.
-        // For now, we rely on onAuthStateChange.
-    } else if (!window.location.hash) {
-        // If there's no hash, the user probably navigated here directly without a token.
-        setError("Invalid or expired password reset link. Please request a new one.");
-        showToast("Invalid or expired link.", "error");
-        setCanSetPassword(false);
+    // Log the hash as soon as the component mounts for debugging
+    if (mounted) {
+      console.log("ResetPasswordPage mounted. Full URL:", window.location.href);
+      console.log("ResetPasswordPage hash:", window.location.hash);
     }
 
+    // Explicitly check for necessary tokens in the hash first
+    if (!window.location.hash.includes('access_token') || !window.location.hash.includes('type=recovery')) {
+      if (mounted) {
+        setError("Invalid or expired password reset link. URL does not appear to contain the necessary recovery tokens. Please request a new one.");
+        showToast("Invalid link: Missing recovery tokens in URL.", "error");
+        setCanSetPassword(false);
+      }
+      return; // Stop further processing if tokens are clearly missing from the hash
+    }
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return;
+
+      console.log("Supabase Auth Event:", event, session); // Log all auth events
+
+      if (event === 'PASSWORD_RECOVERY') {
+        showToast("Recovery tokens recognized. You can now set your new password.", "info");
+        setCanSetPassword(true);
+        setError(null); // Clear previous errors like "missing tokens"
+      } else if (event === 'USER_UPDATED') {
+        // This event fires after a successful password update via supabase.auth.updateUser()
+        // Feedback for this is primarily handled in handleSubmit, but good to log.
+        console.log("User password updated successfully via Supabase event.");
+      }
+      // Note: If there's an error during Supabase's internal processing of the token (e.g., token invalid from Supabase's perspective),
+      // it might not always fire a specific error event here. The failure might become apparent when `updateUser` is called.
+    });
 
     return () => {
+      mounted = false;
       authListener?.subscription.unsubscribe();
     };
-  }, [showToast]);
+  }, [showToast]); // Dependencies for useEffect
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setError(null);
+    setError(null); // Clear previous submit errors
     setMessage(null);
 
     if (!canSetPassword) {
-        setError("Cannot set password. The recovery link might be invalid or not yet processed.");
-        showToast("Please wait or ensure the link is valid.", "warning");
-        return;
+      setError("Cannot set password. The recovery link might be invalid, not yet processed, or tokens were not found in the URL.");
+      showToast("Please wait or ensure the link is valid.", "warning");
+      return;
     }
 
     if (password.length < 6) {
@@ -75,30 +84,35 @@ const ResetPasswordPage: React.FC = () => {
 
     setLoading(true);
     try {
-      // The access token from the URL hash is used by updateUser implicitly
-      // once the Supabase client has processed the PASSWORD_RECOVERY event.
       const { error: updateError } = await supabase.auth.updateUser({ password: password });
 
       if (updateError) {
-        throw updateError;
+        throw updateError; // Throw to be caught by catch block
       }
 
-      // The USER_UPDATED event will fire, but we can also give immediate feedback.
       setMessage("Your password has been updated successfully! Redirecting to login...");
       showToast("Password updated successfully!", "success");
-      setPassword(''); // Clear fields
-      setConfirmPassword(''); // Clear fields
+      setPassword('');
+      setConfirmPassword('');
+      setCanSetPassword(false); // Prevent re-submission
       setTimeout(() => navigate('/login', { replace: true }), 3000);
 
     } catch (err: any) {
       console.error('Error updating password:', err);
-      let displayError = "Failed to update password.";
-      if (err.message.includes(" Аутентификациялық деректер жарамсыз") || err.message.toLowerCase().includes("invalid authentication credentials")) {
-        displayError = "Invalid or expired session. Please try resetting your password again.";
-      } else if (err.message.toLowerCase().includes("token has expired") || err.message.toLowerCase().includes("invalid token")) {
-        displayError = "Password reset token has expired or is invalid. Please request a new one.";
-      } else if (err.message.toLowerCase().includes("same password")) {
-        displayError = "New password must be different from the old password.";
+      let displayError = "Failed to update password. Please try again.";
+      // More specific error messages based on Supabase common errors
+      if (err.message) {
+        if (err.message.toLowerCase().includes("invalid authentication credentials") || err.message.includes(" Аутентификациялық деректер жарамсыз")) {
+          displayError = "Invalid session or credentials. Please try requesting a new password reset link.";
+        } else if (err.message.toLowerCase().includes("token has expired") || err.message.toLowerCase().includes("invalid token") || err.message.toLowerCase().includes("recovery token not found")) {
+          displayError = "Password reset token has expired, is invalid, or was not found. Please request a new one.";
+        } else if (err.message.toLowerCase().includes("same password")) {
+          displayError = "New password must be different from the old password.";
+        } else if (err.message.toLowerCase().includes("rate limit exceeded")) {
+            displayError = "Too many attempts. Please try again later.";
+        } else if (err.message.toLowerCase().includes("user not found")) {
+            displayError = "User not found. The account may have been deleted or the link is incorrect.";
+        }
       }
       setError(displayError);
       showToast(displayError, "error");
@@ -117,7 +131,7 @@ const ResetPasswordPage: React.FC = () => {
           {error}
         </div>
       )}
-      {message && !error && ( // Only show general message if no specific error
+      {message && !error && (
         <div className="mb-4 p-3 rounded-md bg-green-50 border border-green-300 text-green-700 text-sm flex items-center">
           <ShieldCheck size={18} className="mr-2 shrink-0" />
           {message}
@@ -154,13 +168,12 @@ const ResetPasswordPage: React.FC = () => {
         </form>
       )}
 
-      {!canSetPassword && !error && !message && (
+      {!canSetPassword && !error && !message && ( // Shown if tokens missing or not yet processed
          <div className="text-center text-gray-600 p-4 border rounded-md">
             <p>Verifying password reset link...</p>
-            <p className="text-sm mt-2">If this message persists, the link might be invalid or expired.</p>
+            <p className="text-sm mt-2">If this message persists, the link might be invalid, tokens missing, or an error occurred.</p>
          </div>
       )}
-
 
       <p className="mt-8 text-center text-sm">
         <button
