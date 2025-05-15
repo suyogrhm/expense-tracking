@@ -33,13 +33,6 @@ interface IncomeTransaction extends Income {
 
 type CombinedTransaction = Transaction | IncomeTransaction;
 
-interface CombinedTransactionForDisplay extends Partial<Expense>, Partial<Income> {
-  transaction_type: 'expense' | 'income';
-  transaction_date: string;
-  display_category_or_source: string;
-}
-
-
 const presetExpenseCategories: PresetCategoryType[] = [
   { id: 'bills', name: 'Bills' },
   { id: 'petrol', name: 'Petrol' },
@@ -661,23 +654,5 @@ const TransactionsPage: React.FC = () => {
     </div>
   );
 };
-
-interface SummaryCardProps {
-  title: string;
-  amount: number;
-  icon: React.ReactNode;
-  color: string;
-}
-const SummaryCard: React.FC<SummaryCardProps> = ({ title, amount, icon, color }) => (
-  <div className="content-card flex items-center space-x-4 p-4">
-    <div className={`p-3 rounded-full bg-opacity-10 dark:bg-opacity-20 ${color.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-')}`}>
-      {icon}
-    </div>
-    <div>
-      <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{title}</p>
-      <p className={`text-2xl font-semibold ${color}`}>₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
-    </div>
-  </div>
-);
 
 export default TransactionsPage;
