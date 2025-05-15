@@ -1,123 +1,213 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import type { Expense, Income } from '../types'; // Ensure Tag is imported if used in formatting
-// Ensure Tag is imported if used in formatting
-import { formatInTimeZone, format } from 'date-fns-tz';
-import { isValid, parseISO } from 'date-fns';
+import type { PdfExportRow } from '../types'; // Make sure PdfExportRow is in types.ts
+import { formatInTimeZone } from 'date-fns-tz';
+import { isValid } from 'date-fns';
 
-
-function isExpense(item: Expense | Income): item is Expense {
-  return (item as Expense).category !== undefined;
-}
-
-const formatDate = (dateStr: string | undefined | null, timeZone: string): string => {
-  if (!dateStr) {
-    return 'No Date';
-  }
-  
+const formatDateForSubtitle = (date: Date, timeZone: string): string => {
   try {
-    const date = parseISO(dateStr);
     if (!isValid(date)) {
       return 'Invalid Date';
     }
-    return formatInTimeZone(date, timeZone, 'dd MMM yy, hh:mm a');
+    // Using a more explicit and commonly supported format string
+    return formatInTimeZone(date, timeZone, 'dd MMM yyyy, HH:mm:ss zzz');
   } catch (error) {
-    console.error('Error formatting date:', dateStr, error);
-    return 'Invalid Date';
+    console.error('Error formatting subtitle date:', date, error);
+    return 'Invalid Date Format';
   }
 };
 
+interface ReportSummary {
+  totalIncome: number;
+  totalExpenses: number;
+  netFlow: number;
+}
+
 export const exportToPdf = (
-  data: (Expense | Income)[],
+  data: PdfExportRow[],
   fileName: string,
   reportTitle: string,
-  timeZone: string
+  timeZone: string,
+  summary?: ReportSummary,
+  reportType: 'all' | 'expense' | 'income' = 'all'
 ): void => {
-  console.log("Exporting to PDF with data:", data);
+  console.log(`Exporting to PDF (type: ${reportType}) with pre-formatted data:`, data.length);
   if (!data || data.length === 0) {
     console.warn("No data to export to PDF.");
     return;
   }
 
   try {
-    const doc = new jsPDF();
-    const tableColumn = ["Type", "Date", "Category/Source", "Amount", "Description", "Tags"];
-    const tableRows: (string | number)[][] = [];
+    const doc = new jsPDF({
+      orientation: 'p',
+      unit: 'mm',
+      format: 'a4'
+    });
+    let startY = 28;
 
-    // Add current time to the report
-    const currentTime = format(new Date(), 'dd MMM yyyy at HH:mm');
-    const subTitle = `Generated on ${currentTime}`;
+    // ---- Report Title and Subtitle ----
+    doc.setFontSize(18);
+    doc.setTextColor(40);
+    doc.text(reportTitle, 14, 20);
 
-    data.forEach(item => {
-      const isExpenseItem = isExpense(item);
-      const type = isExpenseItem ? 'Expense' : 'Income';
-      const date = formatDate(isExpenseItem ? item.expense_date : item.income_date, timeZone);
-      const category = isExpenseItem ? item.category : item.source;
-      const amount = item.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 });
-      const description = item.description || 'N/A';
-      const tagsString = item.tags?.map(t => t.name).join(', ') || 'N/A';
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    const currentTimeFormatted = formatDateForSubtitle(new Date(), timeZone);
+    const subTitle = `Generated on ${currentTimeFormatted}`;
+    doc.text(subTitle, 14, startY);
+    startY += 10;
 
-      tableRows.push([
-        type,
-        date,
-        category,
-        amount,
-        description,
-        tagsString,
-      ]);
+    // ---- Conditional Summary Section ----
+    if (summary) {
+      doc.setFontSize(12);
+      doc.setTextColor(40);
+      const summaryDataRows: string[][] = [];
+
+      if (reportType === 'income') {
+        summaryDataRows.push([`Total Income:`, `${summary.totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      } else if (reportType === 'expense') {
+        summaryDataRows.push([`Total Expenses:`, `${summary.totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      } else { // 'all'
+        doc.text("Summary for the Period:", 14, startY);
+        startY += 6;
+        summaryDataRows.push([`Total Income:`, `${summary.totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        summaryDataRows.push([`Total Expenses:`, `${summary.totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+        summaryDataRows.push([`Net Flow:`, `${summary.netFlow.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`]);
+      }
+
+      if (summaryDataRows.length > 0) {
+        autoTable(doc, {
+          body: summaryDataRows,
+          startY: startY,
+          theme: 'plain',
+          styles: {
+            fontSize: 9,
+            cellPadding: { top: 1.5, right: 2, bottom: 1.5, left: 2 },
+            valign: 'middle'
+          },
+          columnStyles: {
+            '0': { fontStyle: 'bold', cellWidth: 35, halign: 'left' as const, textColor: [50, 50, 50] },
+            '1': { halign: 'right' as const, cellWidth: 45, fontStyle: 'bold' },
+          },
+          didDrawPage: (hookData) => {
+            startY = hookData.cursor?.y ? hookData.cursor.y : startY;
+          },
+          tableLineColor: [220, 220, 220],
+          tableLineWidth: reportType === 'all' ? 0.2 : 0,
+        });
+        startY = (doc as any).lastAutoTable.finalY + 8;
+      } else {
+        if (reportType === 'all') startY -= 6;
+      }
+    } else {
+      startY = 38;
+    }
+
+    // ---- Main Transaction Table ----
+    const tableColumnsBase = ["Date", "Category/Source", "Description", "Amount", "Tags"];
+    let currentTableColumns = ["Sl/No", ...tableColumnsBase];
+    if (reportType === 'all') {
+      currentTableColumns = ["Sl/No", "Type", ...tableColumnsBase];
+    }
+
+    const tableRows: string[][] = data.map((row, index) => {
+      const baseRowData = [
+        row.Date,
+        row['Category/Source'],
+        row.Description,
+        row.Amount,
+        row.Tags,
+      ];
+      if (reportType === 'all') {
+        return [(index + 1).toString(), row.Type, ...baseRowData];
+      }
+      return [(index + 1).toString(), ...baseRowData];
     });
 
-    // Add title and subtitle
-    doc.setFontSize(18);
-    doc.text(reportTitle, 14, 20);
-    doc.setFontSize(11);
-    doc.setTextColor(100);
-    doc.text(subTitle, 14, 28);
+    const typeColumnIndexIfPresent = reportType === 'all' ? 1 : -1;
+    const amountColumnIndex = reportType === 'all' ? 5 : 4;
+
+    // Further refined column widths
+    const columnStylesAll = {
+      '0': { cellWidth: 8, halign: 'center' as const },  // Sl/No.
+      '1': { cellWidth: 15, halign: 'left' as const },   // Type
+      '2': { cellWidth: 25, halign: 'left' as const },   // Date (dd/MM/yy HH:mm is relatively short)
+      '3': { cellWidth: 35, halign: 'left' as const },   // Category/Source
+      '4': { cellWidth: 55, halign: 'left' as const },   // Description (main flexible column)
+      '5': { cellWidth: 22, halign: 'right' as const },  // Amount
+      '6': { cellWidth: 20, halign: 'left' as const }    // Tags
+    }; // Total: 8+15+25+35+55+22+20 = 170 mm 
+
+    const columnStylesSpecific = {
+      '0': { cellWidth: 8, halign: 'center' as const },  // Sl/No.
+      '1': { cellWidth: 25, halign: 'left' as const },   // Date
+      '2': { cellWidth: 40, halign: 'left' as const },   // Category/Source
+      '3': { cellWidth: 60, halign: 'left' as const },   // Description (main flexible column)
+      '4': { cellWidth: 22, halign: 'right' as const },  // Amount
+      '5': { cellWidth: 25, halign: 'left' as const }    // Tags
+    }; // Total: 8+25+40+60+22+25 = 180 mm
 
     autoTable(doc, {
-      head: [tableColumn],
+      head: [currentTableColumns],
       body: tableRows,
-      startY: 35,
+      startY: startY,
       theme: 'grid',
-      headStyles: { 
-        fillColor: [26, 188, 156], // Emerald green color
-        textColor: 255,
-        fontSize: 10,
+      headStyles: {
+        fillColor: [74, 85, 104],
+        textColor: [255, 255, 255],
+        fontSize: 8.5, // Reduced header font slightly
         fontStyle: 'bold',
-        halign: 'left'
+        halign: 'center',
+        valign: 'middle',
+        cellPadding: { top: 2.5, right: 2, bottom: 2.5, left: 2 },
       },
       styles: {
-        fontSize: 9,
-        cellPadding: 3,
-        lineColor: [200, 200, 200],
-        lineWidth: 0.1
+        fontSize: 8,
+        cellPadding: { top: 1.8, right: 2, bottom: 1.8, left: 2 }, // Reduced cell padding
+        lineColor: [220, 220, 220],
+        lineWidth: 0.15,
+        valign: 'middle',
+        overflow: 'linebreak'
       },
-      columnStyles: {
-        0: { cellWidth: 'auto' }, // Type
-        1: { cellWidth: 'auto' }, // Date
-        2: { cellWidth: 'auto' }, // Category/Source
-        3: { 
-          cellWidth: 'auto',
-          halign: 'right'
-        }, // Amount
-        4: { cellWidth: 'auto' }, // Description
-        5: { cellWidth: 'auto' } // Tags
-      },
+      columnStyles: reportType === 'all' ? columnStylesAll : columnStylesSpecific,
       alternateRowStyles: {
-        fillColor: [249, 249, 249]
+        fillColor: [245, 249, 250]
       },
-      willDrawCell: function(data) {
-        if (data.section === 'body' && data.column.index === 0) {
-          const rowData = data.row.raw as unknown[];
-          const type = rowData[0] as string;
+      willDrawCell: function (hookData) {
+        if (typeColumnIndexIfPresent !== -1 && hookData.section === 'body' && hookData.column.index === typeColumnIndexIfPresent) {
+          const type = hookData.cell.text[0];
           if (type === 'Income') {
-            data.cell.styles.textColor = [22, 163, 74]; // Green text for income
-          } else {
-            data.cell.styles.textColor = [220, 38, 38]; // Red text for expense
+            hookData.cell.styles.textColor = [34, 139, 34];
+            hookData.cell.styles.fontStyle = 'bold';
+          } else if (type === 'Expense') {
+            hookData.cell.styles.textColor = [205, 92, 92];
+            hookData.cell.styles.fontStyle = 'bold';
+          }
+        }
+        if (hookData.section === 'body' && hookData.column.index === amountColumnIndex) {
+          const originalRowData = data[hookData.row.index];
+          if (originalRowData.Type === 'Income') {
+            hookData.cell.styles.textColor = [34, 139, 34];
+            hookData.cell.styles.fontStyle = 'bold';
+          } else if (originalRowData.Type === 'Expense') {
+            hookData.cell.styles.textColor = [205, 92, 92];
+            hookData.cell.styles.fontStyle = 'bold';
           }
         }
       }
     });
+
+    const pageCount = (doc as any).internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(150);
+      doc.text(
+        `Page ${i} of ${pageCount}`,
+        doc.internal.pageSize.getWidth() - 20,
+        doc.internal.pageSize.getHeight() - 10
+      );
+    }
 
     doc.save(fileName);
     console.log("PDF generation successful, save prompted:", fileName);
