@@ -582,7 +582,7 @@ const DashboardPage: React.FC = () => {
                 </h4>
                 <ul className="space-y-2 max-h-60 overflow-y-auto pr-1 nice-scrollbar"> {/* Consider adding custom scrollbar styles if needed */}
                   {selectedTransactionForSplitDetails.expense_split_details.map((detail, index) => (
-                    <li key={detail.id || `modal-split-detail-${index}`} className="bg-gray-100 dark:bg-dark-card-secondary p-3 rounded-lg shadow-sm">
+                    <li key={detail.id || `modal-split-detail-${index}`} className="bg-gray-100 dark:bg-dark-card p-3 rounded-lg shadow-sm">
                       <div className="flex justify-between items-center">
                         <span className="text-gray-800 dark:text-dark-text font-medium">
                           {detail.person_name || 'Unspecified Person'}
