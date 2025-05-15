@@ -308,8 +308,8 @@ const DashboardPage: React.FC = () => {
                   >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${transaction.transaction_type === 'income'
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
                         }`}>
                         {transaction.transaction_type === 'income' ? 'Income' : 'Expense'}
                       </span>
