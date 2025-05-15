@@ -10,7 +10,7 @@ import { useToast } from '../hooks/useToast';
 import {
   PlusCircle, Loader2, Download, TrendingUp, TrendingDown, PiggyBank,
   ChevronUp, ListChecks, Tag as TagIconLucide, Edit3, Trash2,
-  CalendarDays, FileText, Users, StickyNote, ChevronDown, Eye as EyeIcon
+  CalendarDays, FileText, Users, StickyNote, Eye as EyeIcon
 } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
