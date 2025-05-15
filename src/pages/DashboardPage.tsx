@@ -1,13 +1,18 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import ExpenseForm from '../components/Expenses/ExpenseForm';
 import IncomeForm from '../components/Income/IncomeForm';
-import type { Expense, Income, Budget, Tag, PdfExportRow } from '../types';
+// Assuming ExpenseSplitDetail is correctly exported from your types file
+import type { Expense, Income, Budget, Tag, PdfExportRow, ExpenseSplitDetail } from '../types';
 import { supabase } from '../supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { format, startOfMonth, endOfMonth, getYear, getMonth, parseISO } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
 import { useToast } from '../hooks/useToast';
-import { PlusCircle, Loader2, Download, TrendingUp, TrendingDown, PiggyBank, ChevronUp, ListChecks, Tag as TagIconLucide, Edit3, Trash2 } from 'lucide-react';
+import {
+  PlusCircle, Loader2, Download, TrendingUp, TrendingDown, PiggyBank,
+  ChevronUp, ListChecks, Tag as TagIconLucide, Edit3, Trash2,
+  CalendarDays, FileText, Users, StickyNote // Added Users and StickyNote
+} from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import { exportToPdf } from '../utils/exportUtils';
@@ -20,17 +25,21 @@ const MAX_RECENT_TRANSACTIONS = 15;
 interface CombinedTransactionForDashboard extends Partial<Expense>, Partial<Income> {
   transaction_type: 'expense' | 'income';
   transaction_date: string;
-  display_category_or_source: string; 
-  tags?: Tag[]; 
-  id: string; 
-  created_at?: string; 
-  amount: number; 
+  display_category_or_source: string;
+  tags?: Tag[];
+  id: string; // Ensure id is always present for keying and operations
+  created_at?: string;
+  amount: number;
   description?: string | null;
-  category?: string; 
-  sub_category?: string | null; 
-  source?: string; 
-  expense_date?: string; 
-  income_date?: string; 
+  category?: string;
+  sub_category?: string | null;
+  source?: string;
+  expense_date?: string;
+  income_date?: string;
+  // Properties from Expense
+  is_split?: boolean;
+  split_note?: string | null;
+  expense_split_details?: ExpenseSplitDetail[] | null;
 }
 
 const DashboardPage: React.FC = () => {
@@ -39,7 +48,7 @@ const DashboardPage: React.FC = () => {
   const [recentTransactions, setRecentTransactions] = useState<CombinedTransactionForDashboard[]>([]);
   const [currentBudgets, setCurrentBudgets] = useState<Budget[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isExpenseFormVisible, setIsExpenseFormVisible] = useState(false); 
+  const [isExpenseFormVisible, setIsExpenseFormVisible] = useState(false);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTransaction, setEditingTransaction] = useState<CombinedTransactionForDashboard | null>(null);
@@ -53,15 +62,14 @@ const DashboardPage: React.FC = () => {
     const cYear = getYear(n);
     const mStart = format(startOfMonth(n), "yyyy-MM-dd'T'00:00:00XXX");
     const mEnd = format(endOfMonth(n), "yyyy-MM-dd'T'23:59:59XXX");
-    // CORRECTED FORMAT STRING: 'MMMM yyyy'
-    const cMonthName = format(n, 'MMMM yyyy'); 
+    const cMonthName = format(n, 'MMMM yyyy');
     return { currentMonth: cMonth, currentYearVal: cYear, monthStartISO: mStart, monthEndISO: mEnd, currentMonthNameFormatted: cMonthName };
   }, []);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
     setIsLoading(true);
-    
+
     try {
       const [expensesRes, incomeRes, budgetsRes] = await Promise.all([
         supabase
@@ -86,53 +94,44 @@ const DashboardPage: React.FC = () => {
           .eq('year', currentYearVal)
       ]);
 
-      if (expensesRes.error) {
-        console.error("Error fetching expenses:", expensesRes.error);
-        throw expensesRes.error;
-      }
+      if (expensesRes.error) throw expensesRes.error;
       const fetchedExpenses = (expensesRes.data || []).map(exp => ({
-          ...exp,
-          tags: exp.tags || [],
-          expense_split_details: exp.expense_split_details || []
-        })) as Expense[];
+        ...exp,
+        tags: exp.tags || [],
+        expense_split_details: exp.expense_split_details || []
+      })) as Expense[];
       setCurrentMonthExpenses(fetchedExpenses);
-      // console.log(`Fetched ${fetchedExpenses.length} expenses for the current month.`);
 
-      if (incomeRes.error) {
-        console.error("Error fetching income:", incomeRes.error);
-        throw incomeRes.error;
-      }
-      const fetchedIncome = (incomeRes.data || []).map(inc => ({...inc, tags: inc.tags || []})) as Income[];
+      if (incomeRes.error) throw incomeRes.error;
+      const fetchedIncome = (incomeRes.data || []).map(inc => ({ ...inc, tags: inc.tags || [] })) as Income[];
       setCurrentMonthIncome(fetchedIncome);
-      // console.log(`Fetched ${fetchedIncome.length} income records for the current month.`);
-      
+
       const combinedForRecentDisplay: CombinedTransactionForDashboard[] = [
         ...fetchedExpenses.map(exp => ({
-          ...exp, 
+          ...exp,
           transaction_type: 'expense' as const,
           transaction_date: exp.expense_date,
           display_category_or_source: exp.sub_category ? `${exp.category} (${exp.sub_category})` : exp.category,
+          // id is already part of exp
         })),
         ...fetchedIncome.map(inc => ({
-          ...inc, 
+          ...inc,
           transaction_type: 'income' as const,
           transaction_date: inc.income_date,
           display_category_or_source: inc.source,
+          // id is already part of inc
         }))
       ];
 
       combinedForRecentDisplay.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
       setRecentTransactions(combinedForRecentDisplay.slice(0, MAX_RECENT_TRANSACTIONS));
 
-      if (budgetsRes.error) {
-        console.error("Error fetching budgets:", budgetsRes.error);
-        throw budgetsRes.error;
-      }
+      if (budgetsRes.error) throw budgetsRes.error;
       setCurrentBudgets(budgetsRes.data as Budget[] || []);
 
     } catch (error: any) {
-      console.error("Error fetching dashboard data (overall):", error);
-      showToast("Failed to load dashboard data.", "error");
+      console.error("Error fetching dashboard data:", error);
+      showToast(`Failed to load dashboard data: ${error.message}`, "error");
     } finally {
       setIsLoading(false);
     }
@@ -143,9 +142,9 @@ const DashboardPage: React.FC = () => {
   }, [fetchData]);
 
   const handleExpenseAdded = (_newExpense: Expense) => {
-    fetchData(); 
+    fetchData();
     showToast("Expense added successfully!", "success");
-    setIsExpenseFormVisible(false); 
+    setIsExpenseFormVisible(false);
   };
 
   const handleOpenEditModal = (transaction: CombinedTransactionForDashboard) => {
@@ -158,42 +157,36 @@ const DashboardPage: React.FC = () => {
     setIsEditModalOpen(false);
   };
 
-  const handleTransactionSaved = () => { 
+  const handleTransactionSaved = () => {
     fetchData();
     showToast("Transaction updated successfully!", "success");
     handleCloseEditModal();
   };
-  
+
   const handleDeleteTransaction = async (transactionId: string, type: 'expense' | 'income') => {
     if (!user) return;
     if (!confirm(`Are you sure you want to delete this ${type}? This action cannot be undone.`)) {
-        return;
+      return;
     }
-
     try {
-        if (type === 'expense') {
-            const { error: tagError } = await supabase.from('expense_tags').delete().eq('expense_id', transactionId);
-            if (tagError) console.error('Error deleting expense tags:', tagError); 
-            const { error: splitError } = await supabase.from('expense_split_details').delete().eq('expense_id', transactionId);
-            if (splitError) console.error('Error deleting expense split details:', splitError); 
-
-            const { error } = await supabase.from('expenses').delete().eq('id', transactionId).eq('user_id', user.id);
-            if (error) throw error;
-        } else { 
-            const { error: tagError } = await supabase.from('income_tags').delete().eq('income_id', transactionId);
-            if (tagError) console.error('Error deleting income tags:', tagError); 
-            
-            const { error } = await supabase.from('incomes').delete().eq('id', transactionId).eq('user_id', user.id);
-            if (error) throw error;
-        }
-        showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully!`, "success");
-        fetchData(); 
+      if (type === 'expense') {
+        await supabase.from('expense_tags').delete().eq('expense_id', transactionId);
+        await supabase.from('expense_split_details').delete().eq('expense_id', transactionId);
+        const { error } = await supabase.from('expenses').delete().eq('id', transactionId).eq('user_id', user.id);
+        if (error) throw error;
+      } else {
+        await supabase.from('income_tags').delete().eq('income_id', transactionId);
+        const { error } = await supabase.from('incomes').delete().eq('id', transactionId).eq('user_id', user.id);
+        if (error) throw error;
+      }
+      showToast(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted successfully!`, "success");
+      fetchData();
     } catch (error: any) {
-        console.error(`Error deleting ${type}:`, error);
-        showToast(`Failed to delete ${type}. ${error.message}`, "error");
+      console.error(`Error deleting ${type}:`, error);
+      showToast(`Failed to delete ${type}. ${error.message}`, "error");
     }
   };
-  
+
   const totalExpenses = currentMonthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
   const totalIncome = currentMonthIncome.reduce((sum, inc) => sum + inc.amount, 0);
   const netFlow = totalIncome - totalExpenses;
@@ -202,10 +195,6 @@ const DashboardPage: React.FC = () => {
   const spentAgainstOverall = totalExpenses;
 
   const handleExportCurrentMonthTransactionsPdf = () => {
-    // console.log("Initiating PDF export...");
-    // console.log("Current month expenses for PDF:", currentMonthExpenses.length);
-    // console.log("Current month income for PDF:", currentMonthIncome.length);
-
     const allMonthTransactions: CombinedTransactionForDashboard[] = [
       ...currentMonthExpenses.map(exp => ({
         ...exp,
@@ -220,42 +209,52 @@ const DashboardPage: React.FC = () => {
         display_category_or_source: inc.source,
       }))
     ];
-    // console.log("Total combined transactions for PDF:", allMonthTransactions.length);
-
     allMonthTransactions.sort((a, b) => new Date(b.transaction_date).getTime() - new Date(a.transaction_date).getTime());
 
     if (allMonthTransactions.length === 0) {
       showToast("No transactions for the current month to export.", "info");
-      // console.log("No transactions to export.");
       return;
     }
 
     const dataToExport: PdfExportRow[] = allMonthTransactions.map(t => {
       const formattedDate = format(parseISO(t.transaction_date), 'dd/MM/yy HH:mm');
       const tagsString = t.tags && t.tags.length > 0 ? t.tags.map(tag => tag.name).join(', ') : 'N/A';
-      const amount = t.amount || 0; 
+      const amount = t.amount || 0;
       const amountString = `${t.transaction_type === 'income' ? '+' : '-'}${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-      return {
+
+      let row: PdfExportRow = {
         'Type': t.transaction_type === 'income' ? 'Income' : 'Expense',
         'Date': formattedDate,
-        'Category/Source': t.display_category_or_source, 
+        'Category/Source': t.display_category_or_source,
         'Description': t.description || 'N/A',
         'Amount': amountString,
         'Tags': tagsString,
       };
+
+      if (t.transaction_type === 'expense') {
+        if (t.split_note) {
+          row['Split Note'] = t.split_note;
+        }
+        if (t.expense_split_details && t.expense_split_details.length > 0) {
+          const splitDetailsString = t.expense_split_details.map(sd =>
+            `${sd.person_name || 'Portion'}: ${Number(sd.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          ).join('; ');
+          row['Split Between'] = splitDetailsString;
+        }
+      }
+      return row;
     });
-    // console.log("Data prepared for exportToPdf utility:", dataToExport.length);
-    
+
     const fileName = `Monthly_Transactions_${currentMonthNameFormatted.replace(/ /g, '_')}.pdf`;
     const title = `All Transactions for ${currentMonthNameFormatted}`;
-    
+
     const summaryData = {
-        totalIncome: totalIncome,       
-        totalExpenses: totalExpenses,   
-        netFlow: netFlow                
+      totalIncome: totalIncome,
+      totalExpenses: totalExpenses,
+      netFlow: netFlow
     };
-    
-    exportToPdf(dataToExport, fileName, title, TIME_ZONE, summaryData, 'all'); 
+
+    exportToPdf(dataToExport, fileName, title, TIME_ZONE, summaryData, 'all');
     showToast("PDF export of current month's transactions started.", "success");
   };
 
@@ -264,14 +263,14 @@ const DashboardPage: React.FC = () => {
       {/* Add New Expense Form Section */}
       <div className="content-card">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-            <div>
-                <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Dashboard</h1>
-                <p className="text-gray-600 dark:text-dark-text-secondary">Overview for {currentMonthNameFormatted.split(' ')[0]}.</p>
-            </div>
-            <Button onClick={() => setIsExpenseFormVisible(!isExpenseFormVisible)} variant="primary" size="lg" className="w-full sm:w-auto">
-            {isExpenseFormVisible ? <ChevronUp size={20} className="mr-2"/> : <PlusCircle size={20} className="mr-2" />}
+          <div>
+            <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Dashboard</h1>
+            <p className="text-gray-600 dark:text-dark-text-secondary">Overview for {currentMonthNameFormatted.split(' ')[0]}.</p>
+          </div>
+          <Button onClick={() => setIsExpenseFormVisible(!isExpenseFormVisible)} variant="primary" size="lg" className="w-full sm:w-auto">
+            {isExpenseFormVisible ? <ChevronUp size={20} className="mr-2" /> : <PlusCircle size={20} className="mr-2" />}
             {isExpenseFormVisible ? 'Close Expense Form' : 'Add New Expense'}
-            </Button>
+          </Button>
         </div>
         <div
           className={classNames(
@@ -283,10 +282,10 @@ const DashboardPage: React.FC = () => {
           )}
         >
           {isExpenseFormVisible && (
-             <ExpenseForm
-                onExpenseAdded={handleExpenseAdded} 
-                existingExpense={null} 
-                onFormCancel={() => setIsExpenseFormVisible(false)}
+            <ExpenseForm
+              onExpenseAdded={handleExpenseAdded}
+              existingExpense={null}
+              onFormCancel={() => setIsExpenseFormVisible(false)}
             />
           )}
         </div>
@@ -294,11 +293,11 @@ const DashboardPage: React.FC = () => {
 
       {/* Summary Cards */}
       <div id="summary-cards-grid" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <SummaryCard title="Total Income" amount={totalIncome} icon={<TrendingUp className="text-green-500"/>} color="text-green-600 dark:text-green-400" />
-        <SummaryCard title="Total Expenses" amount={totalExpenses} icon={<TrendingDown className="text-red-500"/>} color="text-red-600 dark:text-red-400" />
-        <SummaryCard title="Net Flow" amount={netFlow} icon={<PiggyBank className={netFlow >= 0 ? "text-blue-500 dark:text-blue-400" : "text-orange-500 dark:text-orange-400"}/>} color={netFlow >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"} />
+        <SummaryCard title="Total Income" amount={totalIncome} icon={<TrendingUp className="text-green-500" />} color="text-green-600 dark:text-green-400" />
+        <SummaryCard title="Total Expenses" amount={totalExpenses} icon={<TrendingDown className="text-red-500" />} color="text-red-600 dark:text-red-400" />
+        <SummaryCard title="Net Flow" amount={netFlow} icon={<PiggyBank className={netFlow >= 0 ? "text-blue-500 dark:text-blue-400" : "text-orange-500 dark:text-orange-400"} />} color={netFlow >= 0 ? "text-blue-600 dark:text-blue-400" : "text-orange-600 dark:text-orange-400"} />
       </div>
-      
+
       {/* Budget Section */}
       {overallBudget && (
         <div className="content-card">
@@ -316,35 +315,35 @@ const DashboardPage: React.FC = () => {
           {spentAgainstOverall > overallBudget.amount && (
             <p className="text-xs text-red-500 dark:text-red-400 mt-1">You've exceeded your overall budget!</p>
           )}
-           <Link to="/budgets" className="text-sm text-primary-600 dark:text-dark-primary hover:underline mt-2 inline-block">Manage Budgets</Link>
+          <Link to="/budgets" className="text-sm text-primary-600 dark:text-dark-primary hover:underline mt-2 inline-block">Manage Budgets</Link>
         </div>
       )}
       {!overallBudget && !isLoading && (
-         <div className="p-4 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-30 border border-blue-200 dark:border-blue-700 rounded-lg text-center">
-           <p className="text-sm text-blue-700 dark:text-blue-300">No overall budget set for {currentMonthNameFormatted}.</p>
-           <Link to="/budgets" className="text-sm text-primary-600 dark:text-dark-primary hover:underline font-medium mt-1 inline-block">Set a Budget</Link>
-       </div>
+        <div className="p-4 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-30 border border-blue-200 dark:border-blue-700 rounded-lg text-center">
+          <p className="text-sm text-blue-700 dark:text-blue-300">No overall budget set for {currentMonthNameFormatted}.</p>
+          <Link to="/budgets" className="text-sm text-primary-600 dark:text-dark-primary hover:underline font-medium mt-1 inline-block">Set a Budget</Link>
+        </div>
       )}
 
       {/* Recent Transactions Section */}
       <div className="content-card">
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3">
-            <div>
-                <h2 className="text-2xl font-semibold text-gray-700 dark:text-dark-text flex items-center">
-                    <ListChecks size={28} className="mr-3 text-primary-500 dark:text-dark-primary"/>
-                    Recent Transactions
-                </h2>
-                <p className="text-sm text-gray-500 dark:text-dark-text-secondary ml-10">
-                    Showing up to {MAX_RECENT_TRANSACTIONS} most recent entries for {currentMonthNameFormatted.split(' ')[0]}.
-                </p>
+          <div>
+            <h2 className="text-2xl font-semibold text-gray-700 dark:text-dark-text flex items-center">
+              <ListChecks size={28} className="mr-3 text-primary-500 dark:text-dark-primary" />
+              Recent Transactions
+            </h2>
+            <p className="text-sm text-gray-500 dark:text-dark-text-secondary ml-10">
+              Showing up to {MAX_RECENT_TRANSACTIONS} most recent entries for {currentMonthNameFormatted.split(' ')[0]}.
+            </p>
+          </div>
+          {(currentMonthExpenses.length > 0 || currentMonthIncome.length > 0) && (
+            <div className="flex space-x-2 mt-2 sm:mt-0">
+              <Button onClick={handleExportCurrentMonthTransactionsPdf} variant="outline" size="sm">
+                <Download size={16} className="mr-2" /> Export Month's Transactions
+              </Button>
             </div>
-            {(currentMonthExpenses.length > 0 || currentMonthIncome.length > 0) && ( 
-                <div className="flex space-x-2 mt-2 sm:mt-0">
-                    <Button onClick={handleExportCurrentMonthTransactionsPdf} variant="outline" size="sm">
-                        <Download size={16} className="mr-2" /> Export Month's Transactions
-                    </Button>
-                </div>
-            )}
+          )}
         </div>
 
         {isLoading ? (
@@ -354,7 +353,7 @@ const DashboardPage: React.FC = () => {
           </div>
         ) : recentTransactions.length > 0 ? (
           <>
-            {/* Desktop Table View */}
+            {/* Desktop Table View (remains unchanged) */}
             <div className="hidden md:block overflow-x-auto bg-white dark:bg-dark-card rounded-lg shadow">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-50 dark:bg-gray-700">
@@ -369,16 +368,15 @@ const DashboardPage: React.FC = () => {
                 </thead>
                 <tbody className="bg-white dark:bg-dark-card divide-y divide-gray-200 dark:divide-gray-700">
                   {recentTransactions.map((transaction) => (
-                    <tr 
-                      key={`${transaction.transaction_type}-${transaction.id}-${transaction.created_at || transaction.transaction_date}`} 
+                    <tr
+                      key={`${transaction.transaction_type}-${transaction.id}-${transaction.created_at || transaction.transaction_date}`}
                       className="hover:bg-gray-100 dark:hover:bg-gray-700"
                     >
                       <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          transaction.transaction_type === 'income' 
-                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300' 
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${transaction.transaction_type === 'income'
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-300'
                           : 'bg-red-100 dark:bg-red-900/30 text-red-800 dark:text-red-300'
-                        }`}>
+                          }`}>
                           {transaction.transaction_type === 'income' ? 'Income' : 'Expense'}
                         </span>
                       </td>
@@ -387,17 +385,16 @@ const DashboardPage: React.FC = () => {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-dark-text">{transaction.display_category_or_source}</td>
                       <td className="px-6 py-4 text-sm text-gray-500 dark:text-dark-text-secondary truncate max-w-xs">{transaction.description || 'N/A'}</td>
-                      <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${
-                          transaction.transaction_type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${transaction.transaction_type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
                         }`}>
                         {transaction.transaction_type === 'income' ? '+' : '-'}{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                       <td className="px-4 py-4 whitespace-nowrap text-sm text-center">
                         <Button variant="icon" size="sm" onClick={() => handleOpenEditModal(transaction)} className="text-primary-600 hover:text-primary-800 dark:text-primary-400 dark:hover:text-primary-200 mr-2">
-                            <Edit3 size={16} />
+                          <Edit3 size={16} />
                         </Button>
                         <Button variant="icon" size="sm" onClick={() => handleDeleteTransaction(transaction.id!, transaction.transaction_type)} className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-200">
-                            <Trash2 size={16} />
+                          <Trash2 size={16} />
                         </Button>
                       </td>
                     </tr>
@@ -406,76 +403,116 @@ const DashboardPage: React.FC = () => {
               </table>
             </div>
 
-            {/* Mobile Card View */}
+            {/* Mobile Card View - UPDATED SECTION */}
             <div className="md:hidden space-y-4">
               {recentTransactions.map((transaction) => (
-                <div 
-                  key={`${transaction.transaction_type}-${transaction.id}-mobile-dashboard`} 
-                  className={`bg-white dark:bg-dark-card rounded-xl shadow-lg p-4 border-l-4 ${
-                    transaction.transaction_type === 'income' ? 'border-green-500 dark:border-green-400' : 'border-red-500 dark:border-red-400'
-                  }`}
+                <div
+                  key={`${transaction.transaction_type}-${transaction.id}-mobile-dashboard`}
+                  className="bg-white dark:bg-dark-card rounded-xl shadow-lg p-4"
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <span className={`block text-lg font-semibold ${
-                        transaction.transaction_type === 'income' 
-                          ? 'text-green-600 dark:text-green-400' 
-                          : 'text-red-600 dark:text-red-400'
-                      }`}>
-                        {transaction.transaction_type === 'income' ? '+' : '-'}{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                        {format(parseISO(transaction.transaction_date), 'dd/MM/yy HH:mm')}
-                      </span>
-                    </div>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      transaction.transaction_type === 'income' 
-                        ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' 
-                        : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                    }`}>
-                      {transaction.transaction_type.charAt(0).toUpperCase() + transaction.transaction_type.slice(1)}
-                    </span>
-                  </div>
-                  
-                  <div className="mb-2">
-                    <span className="text-sm font-medium text-gray-800 dark:text-dark-text">
+                  {/* Top Section: Category/Source (Left) and Amount (Right) */}
+                  <div className="flex justify-between items-center mb-3">
+                    <h3 className="text-lg font-semibold text-primary-600 dark:text-primary-400 truncate pr-2">
                       {transaction.display_category_or_source}
+                    </h3>
+                    <span className={`text-lg font-bold whitespace-nowrap ${transaction.transaction_type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}>
+                      {transaction.transaction_type === 'income' ? '+' : '-'}₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 
-                  {transaction.description && (
-                    <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-2 leading-snug">
-                      {transaction.description}
-                    </p>
-                  )}
-                  
-                  {transaction.tags && transaction.tags.length > 0 && (
-                    <div className="mt-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {transaction.tags.map(tag => (
-                          <span 
-                            key={tag.id} 
-                            className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                          >
-                            <TagIconLucide size={12} className="mr-1 opacity-70"/>
-                            {tag.name}
-                          </span>
-                        ))}
-                      </div>
+                  {/* Middle Section: Details with Icons */}
+                  <div className="space-y-1.5 mb-3 text-sm">
+                    {/* Date */}
+                    <div className="flex items-center text-gray-600 dark:text-dark-text-secondary">
+                      <CalendarDays size={15} className="mr-2 flex-shrink-0 opacity-80" />
+                      <span>
+                        {format(parseISO(transaction.transaction_date), 'dd MMM yy, hh:mm a')}
+                      </span>
                     </div>
-                  )}
-                  {/* Actions for Mobile Card View */}
-                  <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
-                      <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(transaction)} className="text-primary-600 border-primary-500 hover:bg-primary-50 dark:text-primary-400 dark:border-primary-400 dark:hover:bg-gray-700">
-                          <Edit3 size={14} className="mr-1" /> Edit
-                      </Button>
-                      <Button variant="outline" size="sm" onClick={() => handleDeleteTransaction(transaction.id!, transaction.transaction_type)} className="text-red-600 border-red-500 hover:bg-red-50 dark:text-red-400 dark:border-red-400 dark:hover:bg-gray-700">
-                          <Trash2 size={14} className="mr-1" /> Delete
-                      </Button>
+
+                    {/* Description */}
+                    {transaction.description && (
+                      <div className="flex items-start text-gray-600 dark:text-dark-text-secondary">
+                        <FileText size={15} className="mr-2 flex-shrink-0 opacity-80 mt-[3px]" />
+                        <span className="break-words">{transaction.description}</span>
+                      </div>
+                    )}
+
+                    {/* Tags */}
+                    {transaction.tags && transaction.tags.length > 0 && (
+                      <div className="flex items-start text-gray-600 dark:text-dark-text-secondary">
+                        <TagIconLucide size={15} className="mr-2 flex-shrink-0 opacity-80 mt-[3px]" />
+                        <span className="break-words">
+                          {transaction.tags.map(tag => tag.name).join(', ')}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Overall Split Note - Only for expenses and if split_note exists */}
+                    {transaction.transaction_type === 'expense' && transaction.split_note && (
+                      <div className="flex items-start text-gray-600 dark:text-dark-text-secondary pt-1.5">
+                        <StickyNote size={15} className="mr-2 flex-shrink-0 opacity-80 mt-[3px]" />
+                        <div className="w-full">
+                          <span className="font-medium text-gray-700 dark:text-dark-text">Split Note:</span>
+                          <p className="text-xs text-gray-600 dark:text-dark-text-secondary italic break-words mt-0.5">
+                            {transaction.split_note}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Split Details Section - Only for expenses and if split details exist */}
+                    {transaction.transaction_type === 'expense' && transaction.expense_split_details && transaction.expense_split_details.length > 0 && (
+                      <div className={`pt-2 ${transaction.split_note ? 'mt-1.5' : 'mt-2'} border-t border-gray-200 dark:border-gray-700/60`}>
+                        <div className="flex items-start text-sm mt-1.5">
+                          <Users size={16} className="mr-2 flex-shrink-0 text-gray-500 dark:text-gray-400 mt-0.5" />
+                          <div className="w-full">
+                            <h4 className="font-medium text-gray-700 dark:text-dark-text mb-1">Split Between:</h4>
+                            <ul className="space-y-1 text-xs">
+                              {transaction.expense_split_details.map((detail, index) => (
+                                <li key={detail.id || `split-detail-${index}`} className="bg-gray-50 dark:bg-gray-700/40 p-1.5 rounded-md shadow-sm">
+                                  <div className="flex justify-between items-center">
+                                    <span className="text-gray-700 dark:text-dark-text-secondary font-medium break-all pr-1">
+                                      {detail.person_name || 'Unspecified Person'}
+                                    </span>
+                                    <span className="text-gray-800 dark:text-dark-text font-semibold whitespace-nowrap">
+                                      ₹{Number(detail.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                    </span>
+                                  </div>
+                                  {/* Individual notes per split detail are not in ExpenseSplitDetail type, so removed */}
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="mt-4 pt-3 border-t border-gray-200 dark:border-gray-700 flex justify-end space-x-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleOpenEditModal(transaction)}
+                      className="text-primary-600 border-primary-300 hover:bg-primary-50 dark:text-primary-300 dark:border-primary-500 dark:hover:bg-gray-700 px-3 py-1.5"
+                    >
+                      <Edit3 size={14} className="mr-1.5" /> Edit
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => handleDeleteTransaction(transaction.id!, transaction.transaction_type)}
+                      className="text-red-600 border-red-300 hover:bg-red-50 dark:text-red-400 dark:border-red-500 dark:hover:bg-gray-700 px-3 py-1.5"
+                    >
+                      <Trash2 size={14} className="mr-1.5" /> Delete
+                    </Button>
                   </div>
                 </div>
               ))}
             </div>
+            {/* END OF UPDATED MOBILE VIEW SECTION */}
           </>
         ) : (
           <p className="text-center text-gray-500 dark:text-dark-text-secondary py-10">No transactions recorded for this month yet.</p>
@@ -484,24 +521,24 @@ const DashboardPage: React.FC = () => {
 
       {/* Edit Modal */}
       {isEditModalOpen && editingTransaction && (
-        <Modal 
-            isOpen={isEditModalOpen} 
-            onClose={handleCloseEditModal} 
-            title={`Edit ${editingTransaction.transaction_type.charAt(0).toUpperCase() + editingTransaction.transaction_type.slice(1)}`}
+        <Modal
+          isOpen={isEditModalOpen}
+          onClose={handleCloseEditModal}
+          title={`Edit ${editingTransaction.transaction_type.charAt(0).toUpperCase() + editingTransaction.transaction_type.slice(1)}`}
         >
-            {editingTransaction.transaction_type === 'expense' ? (
-                <ExpenseForm
-                    existingExpense={editingTransaction as Expense} 
-                    onExpenseAdded={handleTransactionSaved} 
-                    onFormCancel={handleCloseEditModal}
-                />
-            ) : (
-                <IncomeForm
-                    existingIncome={editingTransaction as Income} 
-                    onIncomeSaved={handleTransactionSaved} 
-                    onFormCancel={handleCloseEditModal}
-                />
-            )}
+          {editingTransaction.transaction_type === 'expense' ? (
+            <ExpenseForm
+              existingExpense={editingTransaction as Expense}
+              onExpenseAdded={handleTransactionSaved}
+              onFormCancel={handleCloseEditModal}
+            />
+          ) : (
+            <IncomeForm
+              existingIncome={editingTransaction as Income}
+              onIncomeSaved={handleTransactionSaved}
+              onFormCancel={handleCloseEditModal}
+            />
+          )}
         </Modal>
       )}
     </div>
@@ -509,21 +546,21 @@ const DashboardPage: React.FC = () => {
 };
 
 interface SummaryCardProps {
-    title: string;
-    amount: number;
-    icon: React.ReactNode;
-    color: string;
+  title: string;
+  amount: number;
+  icon: React.ReactNode;
+  color: string;
 }
 const SummaryCard: React.FC<SummaryCardProps> = ({ title, amount, icon, color }) => (
-    <div className="content-card flex items-center space-x-4 p-4">
-        <div className={`p-3 rounded-full bg-opacity-10 dark:bg-opacity-20 ${color.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-')}`}>
-             {icon}
-        </div>
-        <div>
-            <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{title}</p>
-            <p className={`text-2xl font-semibold ${color}`}>₹{amount.toLocaleString('en-IN', {minimumFractionDigits: 2, maximumFractionDigits: 2})}</p>
-        </div>
+  <div className="content-card flex items-center space-x-4 p-4">
+    <div className={`p-3 rounded-full bg-opacity-10 dark:bg-opacity-20 ${color.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-')}`}>
+      {icon}
     </div>
+    <div>
+      <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{title}</p>
+      <p className={`text-2xl font-semibold ${color}`}>₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+    </div>
+  </div>
 );
 
 export default DashboardPage;
