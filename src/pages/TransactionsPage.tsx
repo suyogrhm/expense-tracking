@@ -15,7 +15,7 @@ import { useToast } from '../hooks/useToast';
 import { useDebounce } from '../hooks/useDebounce';
 import { format, getYear, getMonth, parseISO, endOfDay, startOfDay } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
-import { Download, Loader2, Search as SearchIcon, Eye, ChevronLeft, ChevronRight, Tag as TagIconLucide } from 'lucide-react';
+import { Download, Loader2, Search as SearchIcon, Eye, ChevronLeft, ChevronRight } from 'lucide-react';
 import Input from '../components/ui/Input';
 import Button from '../components/ui/Button';
 import Select from '../components/ui/Select';
@@ -156,7 +156,6 @@ const TransactionsPage: React.FC = () => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // ... (rest of the filtering and sorting useEffect for on-screen display remains the same)
   useEffect(() => {
     let processedTransactions = [...allCombinedTransactions];
     if (viewMode === 'expense') {
@@ -222,7 +221,7 @@ const TransactionsPage: React.FC = () => {
           return 0;
         });
       }
-    } else {
+    } else { // viewMode === 'income'
       const currentFilters = activeIncomeFilters;
       if (currentFilters.startDate) { processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.income_date >= startOfDay(parseISO(currentFilters.startDate!)).toISOString()); }
       if (currentFilters.endDate) { processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.income_date <= endOfDay(parseISO(currentFilters.endDate!)).toISOString()); }
@@ -371,8 +370,6 @@ const TransactionsPage: React.FC = () => {
       netFlow: pdfTotalIncome - pdfTotalExpenses
     };
 
-    // Determine reportType for exportUtils based on current viewMode if only one type is active, else 'all'
-    // For a general date range export from this page, 'all' is most appropriate.
     exportToPdf(dataToExport, fileName, title, TIME_ZONE, summaryData, 'all');
     showToast("PDF export started.", "success");
   };
@@ -518,7 +515,6 @@ const TransactionsPage: React.FC = () => {
             Displaying {paginatedTransactions.length} of {filteredAndSortedTransactions.length} records.
             {selectionPeriod !== "All Time" && <><br />Filtered period: <span className="font-semibold">{selectionPeriod}</span></>}
           </p>
-          {/* Update button to open modal */}
           <Button onClick={() => setIsDateRangeModalOpen(true)} variant="outline" size="sm">
             <Download size={16} className="mr-2" /> Export PDF by Date Range
           </Button>
@@ -564,65 +560,72 @@ const TransactionsPage: React.FC = () => {
                 </tbody>
               </table>
             </div>
+            {/* START OF UPDATED MOBILE VIEW SECTION */}
             <div className="md:hidden space-y-4">
               {paginatedTransactions.map((transaction) => (
                 <div
                   key={`${transaction.type}-${transaction.id}-mobile`}
-                  className={`bg-white dark:bg-dark-card rounded-xl shadow-lg p-4 border-l-4 ${transaction.type === 'income' ? 'border-green-500 dark:border-green-400' : 'border-red-500 dark:border-red-400'
-                    }`}
+                  className="bg-white dark:bg-dark-card rounded-xl shadow-lg p-4" // Removed left border, using shadow and rounded corners as per Image 2
                 >
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <span className={`block text-lg font-semibold ${transaction.type === 'income'
-                        ? 'text-green-600 dark:text-green-400'
-                        : 'text-red-600 dark:text-red-400'
-                        }`}>
-                        {transaction.type === 'income' ? '+' : '-'} ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                      </span>
-                      <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                        {format(parseISO(transaction.type === 'expense' ? transaction.expense_date! : transaction.income_date!), 'dd/MM/yy HH:mm')}
-                      </span>
-                    </div>
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.type === 'income'
-                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                      }`}>
+                  {/* Top Row: Type Badge (left) and Amount (right) */}
+                  <div className="flex justify-between items-center mb-3">
+                    <span className={`inline-flex items-center px-2.5 py-1 rounded-md text-xs font-semibold
+                      ${transaction.type === 'income'
+                        ? 'bg-green-100 dark:bg-green-700 text-green-700 dark:text-green-200' // Adjusted dark mode for badge text
+                        : 'bg-red-100 dark:bg-red-700 text-red-700 dark:text-red-200'      // Adjusted dark mode for badge text
+                      }`}
+                    >
                       {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
+                    </span>
+                    <span className={`text-xl font-bold ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'
+                      }`}
+                    >
+                      {transaction.type === 'income'} ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </span>
                   </div>
 
-                  <div className="mb-2">
-                    <span className="text-sm font-medium text-gray-800 dark:text-dark-text">
+                  {/* Details Section - Grid Layout */}
+                  <div className="grid grid-cols-[max-content,1fr] gap-x-3 gap-y-1.5 text-sm">
+                    {/* Date */}
+                    <span className="font-medium text-gray-500 dark:text-gray-400">Date:</span>
+                    <span className="text-gray-700 dark:text-dark-text-secondary">
+                      {format(parseISO(transaction.type === 'expense' ? transaction.expense_date! : transaction.income_date!), 'dd MMM yy, hh:mm a')}
+                    </span>
+
+                    {/* Category/Source */}
+                    <span className="font-medium text-gray-500 dark:text-gray-400">
+                      {transaction.type === 'expense' ? 'Category:' : 'Source:'}
+                    </span>
+                    <span className="text-gray-700 dark:text-dark-text-secondary break-words"> {/* Changed from truncate to break-words */}
                       {transaction.type === 'expense'
                         ? ((transaction as Expense).sub_category ? `${(transaction as Expense).category} (${(transaction as Expense).sub_category})` : (transaction as Expense).category)
                         : (transaction as IncomeTransaction).source}
                     </span>
+
+                    {/* Description (conditionally rendered) */}
+                    {transaction.description && (
+                      <>
+                        <span className="font-medium text-gray-500 dark:text-gray-400">Description:</span>
+                        <span className="text-gray-700 dark:text-dark-text-secondary break-words">
+                          {transaction.description}
+                        </span>
+                      </>
+                    )}
+
+                    {/* Tags (conditionally rendered) */}
+                    {transaction.tags && transaction.tags.length > 0 && (
+                      <>
+                        <span className="font-medium text-gray-500 dark:text-gray-400 self-start">Tags:</span>
+                        <span className="text-gray-700 dark:text-dark-text-secondary break-words"> {/* Display tags as comma-separated string */}
+                          {transaction.tags.map(tag => tag.name).join(', ')}
+                        </span>
+                      </>
+                    )}
                   </div>
-
-                  {transaction.description && (
-                    <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-2 leading-snug">
-                      {transaction.description}
-                    </p>
-                  )}
-
-                  {transaction.tags && transaction.tags.length > 0 && (
-                    <div className="mt-2">
-                      <div className="flex flex-wrap gap-1.5">
-                        {transaction.tags.map(tag => (
-                          <span
-                            key={tag.id}
-                            className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
-                          >
-                            <TagIconLucide size={12} className="mr-1 opacity-70" />
-                            {tag.name}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>
+            {/* END OF UPDATED MOBILE VIEW SECTION */}
             {totalPages > 1 && (
               <div className="flex justify-center items-center space-x-2 mt-6 py-2">
                 <Button onClick={handlePreviousPage} disabled={currentPage === 1} variant="outline" size="sm">
@@ -648,7 +651,7 @@ const TransactionsPage: React.FC = () => {
       <DateRangeModal
         isOpen={isDateRangeModalOpen}
         onClose={() => setIsDateRangeModalOpen(false)}
-        onExport={handleExportPdfForDateRange} // Changed to a new handler
+        onExport={handleExportPdfForDateRange}
         title="Export Transactions by Date Range"
       />
     </div>

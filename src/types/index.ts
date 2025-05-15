@@ -142,3 +142,13 @@ export interface SubCategory { // This seems like a generic sub-category
   id: string;
   name: string;
 }
+export interface PdfExportRow {
+  Type: string;
+  Date: string;
+  'Category/Source': string; // Matches the column header in the PDF
+  Description: string;
+  Amount: string; // Formatted string, e.g., "+1,000.00" or "-50.00"
+  Tags: string;   // Comma-separated string of tags or "N/A"
+  'Split Note'?: string; // Optional: For overall split note for an expense
+  'Split Between'?: string; // Optional: For list of persons/amounts in a split expense
+}
