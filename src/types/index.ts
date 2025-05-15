@@ -1,67 +1,3 @@
-export interface Expense {
-  id: string;
-  user_id: string;
-  created_at: string;
-  expense_date: string;
-  amount: number; // This will now be the TOTAL amount of the expense
-  category: string;
-  sub_category?: string | null;
-  description?: string | null;
-  tags?: Tag[];
-  is_split?: boolean;
-  split_note?: string | null;
-  expense_split_details?: ExpenseSplitDetail[] | null; // New: Array of split details
-}
-
-export interface Category {
-  id: string;
-  name: string;
-}
-
-export interface SubCategory {
-  id: string;
-  name: string;
-}
-
-export interface Income {
-  id: string;
-  user_id: string;
-  created_at: string;
-  income_date: string;
-  source: string;
-  amount: number;
-  description?: string | null;
-  tags?: Tag[];
-}
-
-export interface Budget {
-  id: string;
-  user_id: string;
-  created_at: string;
-  month: number;
-  year: number;
-  category?: string | null;
-  amount: number;
-  description?: string | null;
-}
-
-export interface UserDefinedCategory {
-  id: string;
-  user_id: string;
-  name: string;
-  type: 'expense' | 'income';
-  created_at: string;
-  user_defined_sub_categories?: UserDefinedSubCategory[];
-}
-
-export interface UserDefinedSubCategory {
-  id: string;
-  user_id: string;
-  main_category_id: string;
-  name: string;
-  created_at: string;
-}
-
 export interface Tag {
   id: string;
   user_id: string;
@@ -69,36 +5,129 @@ export interface Tag {
   created_at: string;
 }
 
+export interface UserDefinedCategory {
+  id: string;
+  user_id: string;
+  name: string;
+  type: 'expense' | 'income'; // Specifies if the category is for expenses or income
+  created_at: string;
+  user_defined_sub_categories?: UserDefinedSubCategory[]; // Optional array of sub-categories
+}
+
+export interface UserDefinedSubCategory {
+  id: string;
+  user_id: string;
+  main_category_id: string; // Foreign key to UserDefinedCategory
+  name: string;
+  created_at: string;
+}
+
+// Expense Related Types
+export interface Expense {
+  id: string;
+  user_id: string;
+  created_at: string;
+  expense_date: string; // Date of the expense
+  amount: number; // Total amount of the expense
+  category: string; // Main category of the expense
+  sub_category?: string | null; // Optional sub-category
+  description?: string | null; // Optional description
+  tags?: Tag[]; // Optional array of tags associated with the expense
+  is_split?: boolean; // Flag indicating if the expense is split
+  split_note?: string | null; // Optional note for split expenses
+  expense_split_details?: ExpenseSplitDetail[] | null; // Array of split details if is_split is true
+}
+
+export interface ExpenseSplitDetail {
+  id?: string; // Optional: ID from the database (present if already saved)
+  expense_id?: string; // Optional: Foreign key to Expense (set when saving)
+  user_id: string; // User who this split part belongs to (could be different in shared contexts, but likely current user)
+  person_name: string; // Name of the person involved in this part of the split
+  amount: number; // Amount for this person's share
+  created_at?: string; // Optional: Timestamp of creation
+}
+
 export interface ExpenseFilterState {
   searchTerm: string;
-  selectedYear: number;
-  selectedMonth: number;
-  startDate: string;
-  endDate: string;
-  category: string;
-  tag: string;
-  minAmount: string;
-  maxAmount: string;
+  selectedYear: number; // 0 for all years
+  selectedMonth: number; // 0 for all months
+  startDate: string; // Format: YYYY-MM-DD
+  endDate: string;   // Format: YYYY-MM-DD
+  category: string;  // Selected expense category
+  tag: string;       // Selected tag name
+  minAmount: string; // String for input, parsed to number
+  maxAmount: string; // String for input, parsed to number
 }
 
-export interface SortState {
-  sortBy: 'expense_date' | 'amount' | 'category' | '';
-  sortOrder: 'asc' | 'desc';
+export interface ExpenseSortState {
+  sortBy: 'expense_date' | 'amount' | 'category' | ''; // Fields to sort expenses by
+  sortOrder: 'asc' | 'desc'; // Sort order
 }
 
-// New Type for Expense Split Details
-export interface ExpenseSplitDetail {
-  id?: string; // Optional if it's a new detail not yet saved
-  expense_id?: string; // Will be set when saving
+
+// Income Related Types
+export interface Income {
+  id: string;
   user_id: string;
-  person_name: string;
-  amount: number;
-  created_at?: string;
+  created_at: string;
+  income_date: string; // Date of the income
+  source: string; // Source of the income (e.g., Salary, Freelance)
+  amount: number; // Amount of income
+  description?: string | null; // Optional description
+  tags?: Tag[]; // Optional array of tags associated with the income
 }
+
+export interface IncomeFilterState {
+  searchTerm: string;
+  selectedYear: number; // 0 for all years
+  selectedMonth: number; // 0 for all months
+  startDate: string; // Format: YYYY-MM-DD
+  endDate: string;   // Format: YYYY-MM-DD
+  source: string;    // Selected income source
+  tag: string;       // Selected tag name
+  minAmount: string; // String for input, parsed to number
+  maxAmount: string; // String for input, parsed to number
+}
+
+export interface IncomeSortState {
+  sortBy: 'income_date' | 'amount' | 'source' | ''; // Fields to sort income by
+  sortOrder: 'asc' | 'desc'; // Sort order
+}
+
+
+// Budget Related Types
+export interface Budget {
+  id: string;
+  user_id: string;
+  created_at: string;
+  month: number; // Numeric month (1-12)
+  year: number;  // Numeric year (e.g., 2023)
+  category?: string | null; // Category the budget applies to (can be null if overall budget)
+  amount: number; // Budgeted amount
+  description?: string | null; // Optional description
+}
+
+
+// User Related Types (Supabase Auth)
 export interface UserMetadata {
   username?: string;
+  // Add other custom user metadata fields here if any
 }
+
+// Extending Supabase's User type to include our custom user_metadata
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 export interface AppUser extends SupabaseUser {
   user_metadata: UserMetadata;
+}
+
+
+// Legacy/Generic types (review if still needed or can be more specific)
+export interface Category { // This seems like a generic category, distinct from UserDefinedCategory
+  id: string;
+  name: string;
+}
+
+export interface SubCategory { // This seems like a generic sub-category
+  id: string;
+  name: string;
 }
