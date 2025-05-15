@@ -1,20 +1,23 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient'; // Adjust path as needed
-import { useAuth } from '../contexts/AuthContext'; // Adjust path as needed
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 import type {
   Expense,
   ExpenseFilterState,
-  ExpenseSortState, IncomeFilterState, IncomeSortState, // Ensure this is correctly named from types.ts
-  Category as PresetCategoryType} from '../types'; // Adjust path as needed
+  ExpenseSortState,
+  Category as PresetCategoryType,
+  PdfExportRow
+} from '../types';
 import { format, getYear, getMonth, parseISO, endOfDay, startOfDay } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
-import { useToast } from '../hooks/useToast'; // Adjust path as needed
-import ExpenseTable from '../components/Expenses/ExpenseTable'; // Adjust path as needed
-import AdvancedFilter from '../components/Filters/AdvancedFilter'; // Updated import
-import { Loader2, CalendarDays, Download } from 'lucide-react';
-import Button from '../components/ui/Button'; // Adjust path as needed
-import { exportToPdf } from '../utils/exportUtils'; // Adjust path as needed
-import { useDebounce } from '../hooks/useDebounce'; // Adjust path as needed
+import { useToast } from '../hooks/useToast';
+import { useDebounce } from '../hooks/useDebounce';
+import { Download, Loader2, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import Button from '../components/ui/Button';
+import ExpenseTable from '../components/Expenses/ExpenseTable';
+import AdvancedFilter from '../components/Filters/AdvancedFilter';
+import { exportToPdf } from '../utils/exportUtils';
+import DateRangeModal from '../components/ui/DateRangeModal'; // Import the new modal
 
 const presetCategories: PresetCategoryType[] = [
   { id: 'bills', name: 'Bills' },
@@ -24,6 +27,8 @@ const presetCategories: PresetCategoryType[] = [
   { id: 'online_shopping', name: 'Online Shopping' },
 ];
 
+const ITEMS_PER_PAGE = 15;
+const TIME_ZONE = 'Asia/Kolkata'; // Defined for consistency
 
 const HistoryPage: React.FC = () => {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
@@ -32,7 +37,6 @@ const HistoryPage: React.FC = () => {
   const { user } = useAuth();
   const { showToast } = useToast();
 
-  const timeZone = 'Asia/Kolkata';
   const defaultDisplayYear = 0;
   const defaultDisplayMonth = 0;
 
@@ -42,7 +46,7 @@ const HistoryPage: React.FC = () => {
     selectedMonth: defaultDisplayMonth,
     startDate: '',
     endDate: '',
-    category: '', // This corresponds to 'categoryOrSource' in AdvancedFilter when mode is 'expense'
+    category: '',
     tag: '',
     minAmount: '',
     maxAmount: '',
@@ -56,11 +60,12 @@ const HistoryPage: React.FC = () => {
   const [activeFilters, setActiveFilters] = useState<Partial<ExpenseFilterState>>(initialFilters);
   const [activeSort, setActiveSort] = useState<ExpenseSortState>(initialSort);
 
-  // Debounce text inputs. AdvancedFilter handles its own internal state for inputs,
-  // but the parent (HistoryPage) applies these debounced values from activeFilters.
   const debouncedSearchTerm = useDebounce(activeFilters.searchTerm || '', 500);
   const debouncedMinAmount = useDebounce(activeFilters.minAmount || '', 500);
   const debouncedMaxAmount = useDebounce(activeFilters.maxAmount || '', 500);
+
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isDateRangeModalOpen, setIsDateRangeModalOpen] = useState(false); // State for modal
 
   const fetchAllExpenses = useCallback(async () => {
     if (!user) return;
@@ -73,12 +78,13 @@ const HistoryPage: React.FC = () => {
         .order('expense_date', { ascending: false });
 
       if (error) throw error;
-      setAllExpenses((data || []).map(exp => ({
+      const fetchedExpenses = (data || []).map(exp => ({
         ...exp,
         tags: exp.tags || [],
         expense_split_details: exp.expense_split_details || []
-      })) as Expense[]
-      );
+      })) as Expense[];
+      setAllExpenses(fetchedExpenses);
+      setCurrentPage(1);
     } catch (error: any) {
       console.error("Error fetching all expenses:", error);
       showToast("Failed to load expense history.", "error");
@@ -94,7 +100,6 @@ const HistoryPage: React.FC = () => {
   useEffect(() => {
     let processedExpenses = [...allExpenses];
 
-    // Apply Date Range Filter
     if (activeFilters.startDate) {
       const localStartDate = parseISO(activeFilters.startDate);
       const startUTC = startOfDay(localStartDate).toISOString();
@@ -105,80 +110,47 @@ const HistoryPage: React.FC = () => {
       const endUTC = endOfDay(localEndDate).toISOString();
       processedExpenses = processedExpenses.filter(exp => exp.expense_date <= endUTC);
     }
-
-    // Apply Year/Month Filter (only if no date range is selected)
     if (!activeFilters.startDate && !activeFilters.endDate) {
       if (activeFilters.selectedYear && activeFilters.selectedYear !== 0) {
-        processedExpenses = processedExpenses.filter(exp => {
-          const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
-          return getYear(expenseDateInIST) === activeFilters.selectedYear;
-        });
+        processedExpenses = processedExpenses.filter(exp => getYear(toZonedTime(new Date(exp.expense_date), TIME_ZONE)) === activeFilters.selectedYear);
       }
       if (activeFilters.selectedMonth && activeFilters.selectedMonth !== 0) {
-        processedExpenses = processedExpenses.filter(exp => {
-          const expenseDateInIST = toZonedTime(new Date(exp.expense_date), timeZone);
-          return getMonth(expenseDateInIST) + 1 === activeFilters.selectedMonth;
-        });
+        processedExpenses = processedExpenses.filter(exp => getMonth(toZonedTime(new Date(exp.expense_date), TIME_ZONE)) + 1 === activeFilters.selectedMonth);
       }
     }
-
-    // Apply Category Filter (from activeFilters.category)
     if (activeFilters.category) {
       processedExpenses = processedExpenses.filter(exp => exp.category === activeFilters.category);
     }
-    // Apply Tag Filter
     if (activeFilters.tag) {
       processedExpenses = processedExpenses.filter(exp => exp.tags?.some(t => t.name === activeFilters.tag));
     }
-
-    // Apply Min/Max Amount Filters (using debounced values)
     if (debouncedMinAmount) {
       const min = parseFloat(debouncedMinAmount);
-      if (!isNaN(min)) {
-        processedExpenses = processedExpenses.filter(exp => exp.amount >= min);
-      }
+      if (!isNaN(min)) processedExpenses = processedExpenses.filter(exp => exp.amount >= min);
     }
     if (debouncedMaxAmount) {
       const max = parseFloat(debouncedMaxAmount);
-      if (!isNaN(max)) {
-        processedExpenses = processedExpenses.filter(exp => exp.amount <= max);
-      }
+      if (!isNaN(max)) processedExpenses = processedExpenses.filter(exp => exp.amount <= max);
     }
-    // Apply Search Term Filter (using debounced value)
     if (debouncedSearchTerm.trim() !== '') {
       const lowerSearchTerm = debouncedSearchTerm.toLowerCase();
       processedExpenses = processedExpenses.filter(exp =>
         exp.category.toLowerCase().includes(lowerSearchTerm) ||
         (exp.sub_category && exp.sub_category.toLowerCase().includes(lowerSearchTerm)) ||
         (exp.description && exp.description.toLowerCase().includes(lowerSearchTerm)) ||
-        (exp.amount.toString().includes(lowerSearchTerm)) ||
+        exp.amount.toString().includes(lowerSearchTerm) ||
         (exp.tags && exp.tags.some(tag => tag.name.toLowerCase().includes(lowerSearchTerm)))
       );
     }
-
-    // Apply Sorting
     if (activeSort.sortBy) {
       processedExpenses.sort((a, b) => {
         let valA: any, valB: any;
         switch (activeSort.sortBy) {
-          case 'expense_date':
-            valA = new Date(a.expense_date).getTime();
-            valB = new Date(b.expense_date).getTime();
-            break;
-          case 'amount':
-            valA = a.amount;
-            valB = b.amount;
-            break;
-          case 'category':
-            valA = a.category.toLowerCase();
-            valB = b.category.toLowerCase();
-            break;
-          default:
-            // Optional: handle '' or unexpected sortBy values if your type allows for them
-            // const _exhaustiveCheck: never = activeSort.sortBy; // For stricter type checking
-            return 0;
+          case 'expense_date': valA = new Date(a.expense_date).getTime(); valB = new Date(b.expense_date).getTime(); break;
+          case 'amount': valA = a.amount; valB = b.amount; break;
+          case 'category': valA = a.category.toLowerCase(); valB = b.category.toLowerCase(); break;
+          default: return 0;
         }
-
         if (valA < valB) return activeSort.sortOrder === 'asc' ? -1 : 1;
         if (valA > valB) return activeSort.sortOrder === 'asc' ? 1 : -1;
         return 0;
@@ -186,16 +158,22 @@ const HistoryPage: React.FC = () => {
     }
 
     setFilteredAndSortedExpenses(processedExpenses);
-  }, [allExpenses, activeFilters, activeSort, timeZone, debouncedSearchTerm, debouncedMinAmount, debouncedMaxAmount]);
+    if (processedExpenses.length > 0 && Math.ceil(processedExpenses.length / ITEMS_PER_PAGE) < currentPage) {
+      setCurrentPage(Math.ceil(processedExpenses.length / ITEMS_PER_PAGE));
+    } else if (processedExpenses.length === 0) {
+      setCurrentPage(1);
+    }
+  }, [allExpenses, activeFilters, activeSort, debouncedSearchTerm, debouncedMinAmount, debouncedMaxAmount, currentPage]);
 
 
   const handleFilterChange = useCallback((newFilters: Partial<ExpenseFilterState>) => {
-    // AdvancedFilter will pass the 'category' field for expenses.
     setActiveFilters(prev => ({ ...prev, ...newFilters }));
+    setCurrentPage(1);
   }, []);
 
   const handleSortChange = useCallback((newSort: ExpenseSortState) => {
     setActiveSort(newSort);
+    setCurrentPage(1);
   }, []);
 
   const handleExpenseUpdated = (_updatedExpense: Expense) => {
@@ -206,6 +184,19 @@ const HistoryPage: React.FC = () => {
   const handleExpenseDeleted = (_deletedExpenseId: string) => {
     fetchAllExpenses();
     showToast("Expense deleted successfully!", "success");
+  };
+
+  const paginatedExpenses = filteredAndSortedExpenses.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+  const totalPages = Math.ceil(filteredAndSortedExpenses.length / ITEMS_PER_PAGE);
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
+  };
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
   };
 
   const totalForSelection = filteredAndSortedExpenses.reduce((sum, exp) => sum + exp.amount, 0);
@@ -240,17 +231,78 @@ const HistoryPage: React.FC = () => {
 
   const selectionPeriod = getSelectionPeriodText();
 
-  const handleExportPdf = () => {
-    if (filteredAndSortedExpenses.length === 0) {
-      showToast("No data to export for the selected period.", "info");
+  const handleExportPdfForDateRange = async (pdfStartDate: string, pdfEndDate: string) => {
+    if (!user) {
+      showToast("User not found. Cannot export.", "error");
       return;
     }
-    const safeSelectionPeriod = selectionPeriod.replace(/[^a-zA-Z0-9_-\s]/g, '').replace(/\s+/g, '_');
-    const fileName = `Expense_History_${safeSelectionPeriod}_${format(new Date(), 'yyyyMMdd')}.pdf`;
-    const title = `Expense History for ${selectionPeriod === "All Time" ? "all records" : selectionPeriod}`;
-    exportToPdf(filteredAndSortedExpenses, fileName, title, timeZone);
-    showToast("PDF export started.", "success");
+    showToast("Fetching data for PDF...", "info");
+    setIsLoading(true); // Indicate loading for PDF data fetch
+
+    try {
+      const { data: expensesInRange, error } = await supabase
+        .from('expenses')
+        .select('*, tags(id, name), expense_split_details(*)')
+        .eq('user_id', user.id)
+        .gte('expense_date', format(parseISO(pdfStartDate), "yyyy-MM-dd'T'00:00:00XXX"))
+        .lte('expense_date', format(parseISO(pdfEndDate), "yyyy-MM-dd'T'23:59:59XXX"))
+        .order('expense_date', { ascending: false });
+
+      if (error) throw error;
+
+      const expensesToExport = (expensesInRange || []).map(exp => ({
+        ...exp,
+        tags: exp.tags || [],
+        expense_split_details: exp.expense_split_details || []
+      })) as Expense[];
+
+      if (expensesToExport.length === 0) {
+        showToast("No expenses found for the selected date range.", "info");
+        setIsLoading(false);
+        return;
+      }
+
+      const dataToExport: PdfExportRow[] = expensesToExport.map(exp => {
+        const formattedDate = format(parseISO(exp.expense_date), 'dd/MM/yy HH:mm');
+        const tagsString = exp.tags && exp.tags.length > 0 ? exp.tags.map(tag => tag.name).join(', ') : 'N/A';
+        const amountString = `-${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const categorySource = exp.sub_category ? `${exp.category} (${exp.sub_category})` : exp.category;
+
+        return {
+          'Type': 'Expense',
+          'Date': formattedDate,
+          'Category/Source': categorySource,
+          'Description': exp.description || 'N/A',
+          'Amount': amountString,
+          'Tags': tagsString,
+        };
+      });
+
+      const rangeStartFormatted = format(parseISO(pdfStartDate), 'dd MMM yy');
+      const rangeEndFormatted = format(parseISO(pdfEndDate), 'dd MMM yy');
+      const titleDateRange = pdfStartDate === pdfEndDate ? rangeStartFormatted : `${rangeStartFormatted} to ${rangeEndFormatted}`;
+
+      const fileName = `Expense_History_${rangeStartFormatted.replace(/\s/g, '')}_to_${rangeEndFormatted.replace(/\s/g, '')}.pdf`;
+      const title = `Expense History for ${titleDateRange}`;
+
+      const totalForPdfRange = expensesToExport.reduce((sum, exp) => sum + exp.amount, 0);
+      const summaryData = {
+        totalIncome: 0,
+        totalExpenses: totalForPdfRange,
+        netFlow: -totalForPdfRange
+      };
+
+      exportToPdf(dataToExport, fileName, title, TIME_ZONE, summaryData, 'expense');
+      showToast("PDF export started.", "success");
+
+    } catch (error: any) {
+      console.error("Error fetching expenses for PDF:", error);
+      showToast("Failed to generate PDF. " + error.message, "error");
+    } finally {
+      setIsLoading(false);
+    }
   };
+
 
   return (
     <div className="space-y-8">
@@ -260,17 +312,17 @@ const HistoryPage: React.FC = () => {
         </div>
 
         <AdvancedFilter
-          mode="expense" // Specify mode for expenses
+          mode="expense"
           initialFilters={initialFilters}
-          onFilterChange={handleFilterChange as (filters: Partial<ExpenseFilterState | IncomeFilterState>) => void}
-          initialSort={initialSort} // Already ExpenseSortState
-          onSortChange={handleSortChange as (sort: ExpenseSortState | IncomeSortState) => void}
-          presetCategories={presetCategories} // Pass preset categories for expenses
+          onFilterChange={handleFilterChange as any}
+          initialSort={initialSort}
+          onSortChange={handleSortChange as any}
+          presetCategories={presetCategories}
         />
 
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <p className="text-lg text-gray-600 dark:text-dark-text-secondary">
-            Displaying {filteredAndSortedExpenses.length} of {allExpenses.length} expenses
+            Displaying {paginatedExpenses.length} of {filteredAndSortedExpenses.length} expenses
             {selectionPeriod !== "All Time" && ` for: `}
             <span className="font-semibold text-gray-700 dark:text-dark-text">
               {selectionPeriod !== "All Time" ? selectionPeriod : ''}
@@ -279,26 +331,48 @@ const HistoryPage: React.FC = () => {
             Total for selection:
             <span className="font-bold text-primary-600 dark:text-dark-primary"> ₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
           </p>
-          {filteredAndSortedExpenses.length > 0 && (
-            <div className="flex space-x-2 mt-2 sm:mt-0">
-              <Button onClick={handleExportPdf} variant="outline" size="sm">
-                <Download size={16} className="mr-2" /> PDF
-              </Button>
-            </div>
-          )}
+          {/* Update button to open modal */}
+          <Button onClick={() => setIsDateRangeModalOpen(true)} variant="outline" size="sm">
+            <Download size={16} className="mr-2" /> Export PDF by Date Range
+          </Button>
         </div>
 
-        {isLoading ? (
+        {isLoading && !isDateRangeModalOpen ? (
           <div className="flex justify-center items-center py-10">
             <Loader2 className="h-8 w-8 animate-spin text-primary-500 dark:text-dark-primary" />
             <p className="ml-3 text-gray-500 dark:text-dark-text-secondary">Loading history...</p>
           </div>
-        ) : filteredAndSortedExpenses.length > 0 ? (
-          <ExpenseTable
-            expenses={filteredAndSortedExpenses}
-            onEdit={handleExpenseUpdated}
-            onDelete={handleExpenseDeleted}
-          />
+        ) : paginatedExpenses.length > 0 ? (
+          <>
+            <ExpenseTable
+              expenses={paginatedExpenses}
+              onEdit={handleExpenseUpdated}
+              onDelete={handleExpenseDeleted}
+            />
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center space-x-2 mt-6 py-2">
+                <Button
+                  onClick={handlePreviousPage}
+                  disabled={currentPage === 1}
+                  variant="outline"
+                  size="sm"
+                >
+                  <ChevronLeft size={16} className="mr-1" /> Previous
+                </Button>
+                <span className="text-sm text-gray-700 dark:text-dark-text-secondary">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  onClick={handleNextPage}
+                  disabled={currentPage === totalPages}
+                  variant="outline"
+                  size="sm"
+                >
+                  Next <ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            )}
+          </>
         ) : (
           <div className="text-center text-gray-500 dark:text-dark-text-secondary py-10 space-y-2">
             <CalendarDays size={48} className="mx-auto text-gray-400 dark:text-gray-500" />
@@ -307,6 +381,12 @@ const HistoryPage: React.FC = () => {
           </div>
         )}
       </div>
+      <DateRangeModal
+        isOpen={isDateRangeModalOpen}
+        onClose={() => setIsDateRangeModalOpen(false)}
+        onExport={handleExportPdfForDateRange}
+        title="Export Expense History by Date Range"
+      />
     </div>
   );
 };

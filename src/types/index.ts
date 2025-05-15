@@ -51,8 +51,8 @@ export interface ExpenseFilterState {
   searchTerm: string;
   selectedYear: number; // 0 for all years
   selectedMonth: number; // 0 for all months
-  startDate: string; // Format: YYYY-MM-DD
-  endDate: string;   // Format: YYYY-MM-DD
+  startDate: string; // Format: yyyy-MM-DD
+  endDate: string;   // Format: yyyy-MM-DD
   category: string;  // Selected expense category
   tag: string;       // Selected tag name
   minAmount: string; // String for input, parsed to number
@@ -81,8 +81,8 @@ export interface IncomeFilterState {
   searchTerm: string;
   selectedYear: number; // 0 for all years
   selectedMonth: number; // 0 for all months
-  startDate: string; // Format: YYYY-MM-DD
-  endDate: string;   // Format: YYYY-MM-DD
+  startDate: string; // Format: yyyy-MM-DD
+  endDate: string;   // Format: yyyy-MM-DD
   source: string;    // Selected income source
   tag: string;       // Selected tag name
   minAmount: string; // String for input, parsed to number
@@ -118,6 +118,17 @@ export interface UserMetadata {
 import type { User as SupabaseUser } from '@supabase/supabase-js';
 export interface AppUser extends SupabaseUser {
   user_metadata: UserMetadata;
+}
+
+
+// PDF Export Specific Type
+export interface PdfExportRow {
+  Type: string;
+  Date: string;
+  'Category/Source': string; // Matches the column header in the PDF
+  Description: string;
+  Amount: string; // Formatted string, e.g., "+1,000.00" or "-50.00"
+  Tags: string;   // Comma-separated string of tags or "N/A"
 }
 
 

@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { supabase } from '../supabaseClient'; // Adjust path
-import { useAuth } from '../contexts/AuthContext';   // Adjust path
+import { supabase } from '../supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 import type {
   Expense,
   Income,
@@ -8,18 +8,20 @@ import type {
   ExpenseSortState,
   IncomeFilterState,
   IncomeSortState,
-  Category as PresetCategoryType
-} from '../types'; // Adjust path
-import { useToast } from '../hooks/useToast'; // Adjust path
-import { useDebounce } from '../hooks/useDebounce'; // Adjust path
+  Category as PresetCategoryType,
+  PdfExportRow
+} from '../types';
+import { useToast } from '../hooks/useToast';
+import { useDebounce } from '../hooks/useDebounce';
 import { format, getYear, getMonth, parseISO, endOfDay, startOfDay } from 'date-fns';
 import { toZonedTime } from 'date-fns-tz';
-import { Download, Loader2, Search as SearchIcon, Eye } from 'lucide-react';
-import Input from '../components/ui/Input'; // Adjust path
-import Button from '../components/ui/Button'; // Adjust path
-import Select from '../components/ui/Select'; // Assuming you have a Select component for view mode
-import { exportToPdf } from '../utils/exportUtils'; // Adjust path
-import AdvancedFilter from '../components/Filters/AdvancedFilter'; // Adjust path
+import { Download, Loader2, Search as SearchIcon, Eye, ChevronLeft, ChevronRight, Tag as TagIconLucide } from 'lucide-react';
+import Input from '../components/ui/Input';
+import Button from '../components/ui/Button';
+import Select from '../components/ui/Select';
+import { exportToPdf } from '../utils/exportUtils';
+import AdvancedFilter from '../components/Filters/AdvancedFilter';
+import DateRangeModal from '../components/ui/DateRangeModal'; // Import the new modal
 
 interface Transaction extends Expense {
   type: 'expense';
@@ -31,7 +33,13 @@ interface IncomeTransaction extends Income {
 
 type CombinedTransaction = Transaction | IncomeTransaction;
 
-// Define preset categories for expenses if AdvancedFilter needs them when in 'expense' mode
+interface CombinedTransactionForDisplay extends Partial<Expense>, Partial<Income> {
+  transaction_type: 'expense' | 'income';
+  transaction_date: string;
+  display_category_or_source: string;
+}
+
+
 const presetExpenseCategories: PresetCategoryType[] = [
   { id: 'bills', name: 'Bills' },
   { id: 'petrol', name: 'Petrol' },
@@ -40,22 +48,20 @@ const presetExpenseCategories: PresetCategoryType[] = [
   { id: 'online_shopping', name: 'Online Shopping' },
 ];
 
+const ITEMS_PER_PAGE = 15;
+const TIME_ZONE = 'Asia/Kolkata';
+
 const TransactionsPage: React.FC = () => {
   const [allCombinedTransactions, setAllCombinedTransactions] = useState<CombinedTransaction[]>([]);
   const [filteredAndSortedTransactions, setFilteredAndSortedTransactions] = useState<CombinedTransaction[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { showToast } = useToast();
-  const timeZone = 'Asia/Kolkata';
 
-  // View mode: 'all', 'expense', 'income'
   const [viewMode, setViewMode] = useState<'all' | 'expense' | 'income'>('all');
-
-  // Global search for 'all' view mode
   const [globalSearchTerm, setGlobalSearchTerm] = useState<string>('');
   const debouncedGlobalSearchTerm = useDebounce(globalSearchTerm, 500);
 
-  // States for Expense Filters and Sort
   const initialExpenseFilters: ExpenseFilterState = {
     searchTerm: '', selectedYear: 0, selectedMonth: 0, startDate: '', endDate: '',
     category: '', tag: '', minAmount: '', maxAmount: '',
@@ -64,7 +70,6 @@ const TransactionsPage: React.FC = () => {
   const [activeExpenseFilters, setActiveExpenseFilters] = useState<Partial<ExpenseFilterState>>(initialExpenseFilters);
   const [activeExpenseSort, setActiveExpenseSort] = useState<ExpenseSortState>(initialExpenseSort);
 
-  // States for Income Filters and Sort
   const initialIncomeFilters: IncomeFilterState = {
     searchTerm: '', selectedYear: 0, selectedMonth: 0, startDate: '', endDate: '',
     source: '', tag: '', minAmount: '', maxAmount: '',
@@ -73,7 +78,6 @@ const TransactionsPage: React.FC = () => {
   const [activeIncomeFilters, setActiveIncomeFilters] = useState<Partial<IncomeFilterState>>(initialIncomeFilters);
   const [activeIncomeSort, setActiveIncomeSort] = useState<IncomeSortState>(initialIncomeSort);
 
-  // Debounced values from AdvancedFilter (specific to the current mode)
   const debouncedAdvancedSearchTerm = useDebounce(
     viewMode === 'expense' ? activeExpenseFilters.searchTerm || '' : activeIncomeFilters.searchTerm || '', 500
   );
@@ -84,8 +88,44 @@ const TransactionsPage: React.FC = () => {
     viewMode === 'expense' ? activeExpenseFilters.maxAmount || '' : activeIncomeFilters.maxAmount || '', 500
   );
 
+  const [currentPage, setCurrentPage] = useState(1);
+  const [isDateRangeModalOpen, setIsDateRangeModalOpen] = useState(false); // State for modal
 
-  const fetchTransactions = useCallback(async () => {
+  const fetchTransactionsForDateRange = useCallback(async (startDate: string, endDate: string) => {
+    if (!user) return { expenses: [], income: [] };
+    setIsLoading(true); // Indicate loading for this specific fetch
+    try {
+      const formattedStartDate = format(parseISO(startDate), "yyyy-MM-dd'T'00:00:00XXX");
+      const formattedEndDate = format(parseISO(endDate), "yyyy-MM-dd'T'23:59:59XXX");
+
+      const { data: expenseData, error: expenseError } = await supabase
+        .from('expenses').select('*, tags(id, name), expense_split_details(*)')
+        .eq('user_id', user.id)
+        .gte('expense_date', formattedStartDate)
+        .lte('expense_date', formattedEndDate);
+      if (expenseError) throw expenseError;
+
+      const { data: incomeData, error: incomeError } = await supabase
+        .from('incomes').select('*, tags(id, name)')
+        .eq('user_id', user.id)
+        .gte('income_date', formattedStartDate)
+        .lte('income_date', formattedEndDate);
+      if (incomeError) throw incomeError;
+
+      const expenses = (expenseData || []).map(exp => ({ ...exp, tags: exp.tags || [], expense_split_details: exp.expense_split_details || [] })) as Expense[];
+      const income = (incomeData || []).map(inc => ({ ...inc, tags: inc.tags || [] })) as Income[];
+      return { expenses, income };
+    } catch (error: any) {
+      console.error("Error fetching transactions for date range:", error);
+      showToast("Failed to load transactions for the selected range.", "error");
+      return { expenses: [], income: [] };
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, showToast]);
+
+
+  const fetchTransactions = useCallback(async () => { // This fetches ALL transactions for the page display
     if (!user) return;
     setIsLoading(true);
     try {
@@ -107,11 +147,12 @@ const TransactionsPage: React.FC = () => {
       const combined = [...formattedExpenses, ...formattedIncomes].sort((a, b) => {
         const dateA = new Date(a.type === 'expense' ? a.expense_date : a.income_date);
         const dateB = new Date(b.type === 'expense' ? b.expense_date : b.income_date);
-        return dateB.getTime() - dateA.getTime(); // Default sort: newest first
+        return dateB.getTime() - dateA.getTime();
       });
       setAllCombinedTransactions(combined);
+      setCurrentPage(1);
     } catch (error: any) {
-      console.error("Error fetching transactions:", error);
+      console.error("Error fetching all transactions:", error);
       showToast("Failed to load transactions.", "error");
     } finally {
       setIsLoading(false);
@@ -122,21 +163,16 @@ const TransactionsPage: React.FC = () => {
     fetchTransactions();
   }, [fetchTransactions]);
 
-  // Combined filtering and sorting logic
+  // ... (rest of the filtering and sorting useEffect for on-screen display remains the same)
   useEffect(() => {
     let processedTransactions = [...allCombinedTransactions];
-
-    // 1. Filter by viewMode
     if (viewMode === 'expense') {
       processedTransactions = processedTransactions.filter(t => t.type === 'expense');
     } else if (viewMode === 'income') {
       processedTransactions = processedTransactions.filter(t => t.type === 'income');
     }
-    // For 'all' mode, no type filtering here, show both
 
-    // 2. Apply filters based on viewMode
     if (viewMode === 'all') {
-      // Apply global search term for 'all' mode
       if (debouncedGlobalSearchTerm.trim() !== '') {
         const lowerSearchTerm = debouncedGlobalSearchTerm.toLowerCase();
         processedTransactions = processedTransactions.filter(trans => {
@@ -146,7 +182,7 @@ const TransactionsPage: React.FC = () => {
               (trans.description && trans.description.toLowerCase().includes(lowerSearchTerm)) ||
               trans.amount.toString().includes(lowerSearchTerm) ||
               (trans.tags && trans.tags.some(tag => tag.name.toLowerCase().includes(lowerSearchTerm)));
-          } else { // Income
+          } else {
             return trans.source.toLowerCase().includes(lowerSearchTerm) ||
               (trans.description && trans.description.toLowerCase().includes(lowerSearchTerm)) ||
               trans.amount.toString().includes(lowerSearchTerm) ||
@@ -154,42 +190,18 @@ const TransactionsPage: React.FC = () => {
           }
         });
       }
-      // For 'all' mode, default sort is by date (applied during fetch). Advanced sort is not applied here.
     } else if (viewMode === 'expense') {
-      const currentFilters = activeExpenseFilters as Partial<ExpenseFilterState>; // Type assertion
-      // Apply expense-specific filters from AdvancedFilter
-      if (currentFilters.startDate) {
-        const localStartDate = parseISO(currentFilters.startDate);
-        const startUTC = startOfDay(localStartDate).toISOString();
-        processedTransactions = processedTransactions.filter(t => t.type === 'expense' && t.expense_date >= startUTC);
-      }
-      if (currentFilters.endDate) {
-        const localEndDate = parseISO(currentFilters.endDate);
-        const endUTC = endOfDay(localEndDate).toISOString();
-        processedTransactions = processedTransactions.filter(t => t.type === 'expense' && t.expense_date <= endUTC);
-      }
+      const currentFilters = activeExpenseFilters;
+      if (currentFilters.startDate) { processedTransactions = processedTransactions.filter(t => t.type === 'expense' && t.expense_date >= startOfDay(parseISO(currentFilters.startDate!)).toISOString()); }
+      if (currentFilters.endDate) { processedTransactions = processedTransactions.filter(t => t.type === 'expense' && t.expense_date <= endOfDay(parseISO(currentFilters.endDate!)).toISOString()); }
       if (!currentFilters.startDate && !currentFilters.endDate) {
-        if (currentFilters.selectedYear && currentFilters.selectedYear !== 0) {
-          processedTransactions = processedTransactions.filter(t => t.type === 'expense' && getYear(toZonedTime(new Date(t.expense_date), timeZone)) === currentFilters.selectedYear);
-        }
-        if (currentFilters.selectedMonth && currentFilters.selectedMonth !== 0) {
-          processedTransactions = processedTransactions.filter(t => t.type === 'expense' && getMonth(toZonedTime(new Date(t.expense_date), timeZone)) + 1 === currentFilters.selectedMonth);
-        }
+        if (currentFilters.selectedYear && currentFilters.selectedYear !== 0) { processedTransactions = processedTransactions.filter(t => t.type === 'expense' && getYear(toZonedTime(new Date(t.expense_date), TIME_ZONE)) === currentFilters.selectedYear); }
+        if (currentFilters.selectedMonth && currentFilters.selectedMonth !== 0) { processedTransactions = processedTransactions.filter(t => t.type === 'expense' && getMonth(toZonedTime(new Date(t.expense_date), TIME_ZONE)) + 1 === currentFilters.selectedMonth); }
       }
-      if (currentFilters.category) {
-        processedTransactions = processedTransactions.filter(t => t.type === 'expense' && t.category === currentFilters.category);
-      }
-      if (currentFilters.tag) {
-        processedTransactions = processedTransactions.filter(t => t.tags?.some(tag => tag.name === currentFilters.tag));
-      }
-      if (debouncedAdvancedMinAmount) {
-        const min = parseFloat(debouncedAdvancedMinAmount);
-        if (!isNaN(min)) processedTransactions = processedTransactions.filter(t => t.amount >= min);
-      }
-      if (debouncedAdvancedMaxAmount) {
-        const max = parseFloat(debouncedAdvancedMaxAmount);
-        if (!isNaN(max)) processedTransactions = processedTransactions.filter(t => t.amount <= max);
-      }
+      if (currentFilters.category) { processedTransactions = processedTransactions.filter(t => t.type === 'expense' && t.category === currentFilters.category); }
+      if (currentFilters.tag) { processedTransactions = processedTransactions.filter(t => t.tags?.some(tag => tag.name === currentFilters.tag)); }
+      if (debouncedAdvancedMinAmount) { const min = parseFloat(debouncedAdvancedMinAmount); if (!isNaN(min)) processedTransactions = processedTransactions.filter(t => t.amount >= min); }
+      if (debouncedAdvancedMaxAmount) { const max = parseFloat(debouncedAdvancedMaxAmount); if (!isNaN(max)) processedTransactions = processedTransactions.filter(t => t.amount <= max); }
       if (debouncedAdvancedSearchTerm.trim() !== '') {
         const lowerSearch = debouncedAdvancedSearchTerm.toLowerCase();
         processedTransactions = processedTransactions.filter(t =>
@@ -199,15 +211,12 @@ const TransactionsPage: React.FC = () => {
             (t.description && t.description.toLowerCase().includes(lowerSearch)) ||
             t.amount.toString().includes(lowerSearch) ||
             (t.tags && t.tags.some(tag => tag.name.toLowerCase().includes(lowerSearch)))
-          )
-        );
+          ));
       }
-      // Apply expense-specific sorting
       if (activeExpenseSort.sortBy) {
         processedTransactions.sort((a, b) => {
-          if (a.type === 'income' || b.type === 'income') return 0; // Should not happen if filtered correctly
-          const expA = a as Transaction;
-          const expB = b as Transaction;
+          if (a.type === 'income' || b.type === 'income') return 0;
+          const expA = a as Transaction; const expB = b as Transaction;
           let valA: any, valB: any;
           switch (activeExpenseSort.sortBy) {
             case 'expense_date': valA = new Date(expA.expense_date).getTime(); valB = new Date(expB.expense_date).getTime(); break;
@@ -220,41 +229,18 @@ const TransactionsPage: React.FC = () => {
           return 0;
         });
       }
-    } else { // viewMode === 'income'
-      const currentFilters = activeIncomeFilters as Partial<IncomeFilterState>; // Type assertion
-      // Apply income-specific filters from AdvancedFilter
-      if (currentFilters.startDate) {
-        const localStartDate = parseISO(currentFilters.startDate);
-        const startUTC = startOfDay(localStartDate).toISOString();
-        processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.income_date >= startUTC);
-      }
-      if (currentFilters.endDate) {
-        const localEndDate = parseISO(currentFilters.endDate);
-        const endUTC = endOfDay(localEndDate).toISOString();
-        processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.income_date <= endUTC);
-      }
+    } else {
+      const currentFilters = activeIncomeFilters;
+      if (currentFilters.startDate) { processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.income_date >= startOfDay(parseISO(currentFilters.startDate!)).toISOString()); }
+      if (currentFilters.endDate) { processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.income_date <= endOfDay(parseISO(currentFilters.endDate!)).toISOString()); }
       if (!currentFilters.startDate && !currentFilters.endDate) {
-        if (currentFilters.selectedYear && currentFilters.selectedYear !== 0) {
-          processedTransactions = processedTransactions.filter(t => t.type === 'income' && getYear(toZonedTime(new Date(t.income_date), timeZone)) === currentFilters.selectedYear);
-        }
-        if (currentFilters.selectedMonth && currentFilters.selectedMonth !== 0) {
-          processedTransactions = processedTransactions.filter(t => t.type === 'income' && getMonth(toZonedTime(new Date(t.income_date), timeZone)) + 1 === currentFilters.selectedMonth);
-        }
+        if (currentFilters.selectedYear && currentFilters.selectedYear !== 0) { processedTransactions = processedTransactions.filter(t => t.type === 'income' && getYear(toZonedTime(new Date(t.income_date), TIME_ZONE)) === currentFilters.selectedYear); }
+        if (currentFilters.selectedMonth && currentFilters.selectedMonth !== 0) { processedTransactions = processedTransactions.filter(t => t.type === 'income' && getMonth(toZonedTime(new Date(t.income_date), TIME_ZONE)) + 1 === currentFilters.selectedMonth); }
       }
-      if (currentFilters.source) {
-        processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.source === currentFilters.source);
-      }
-      if (currentFilters.tag) {
-        processedTransactions = processedTransactions.filter(t => t.tags?.some(tag => tag.name === currentFilters.tag));
-      }
-      if (debouncedAdvancedMinAmount) {
-        const min = parseFloat(debouncedAdvancedMinAmount);
-        if (!isNaN(min)) processedTransactions = processedTransactions.filter(t => t.amount >= min);
-      }
-      if (debouncedAdvancedMaxAmount) {
-        const max = parseFloat(debouncedAdvancedMaxAmount);
-        if (!isNaN(max)) processedTransactions = processedTransactions.filter(t => t.amount <= max);
-      }
+      if (currentFilters.source) { processedTransactions = processedTransactions.filter(t => t.type === 'income' && t.source === currentFilters.source); }
+      if (currentFilters.tag) { processedTransactions = processedTransactions.filter(t => t.tags?.some(tag => tag.name === currentFilters.tag)); }
+      if (debouncedAdvancedMinAmount) { const min = parseFloat(debouncedAdvancedMinAmount); if (!isNaN(min)) processedTransactions = processedTransactions.filter(t => t.amount >= min); }
+      if (debouncedAdvancedMaxAmount) { const max = parseFloat(debouncedAdvancedMaxAmount); if (!isNaN(max)) processedTransactions = processedTransactions.filter(t => t.amount <= max); }
       if (debouncedAdvancedSearchTerm.trim() !== '') {
         const lowerSearch = debouncedAdvancedSearchTerm.toLowerCase();
         processedTransactions = processedTransactions.filter(t =>
@@ -263,15 +249,12 @@ const TransactionsPage: React.FC = () => {
             (t.description && t.description.toLowerCase().includes(lowerSearch)) ||
             t.amount.toString().includes(lowerSearch) ||
             (t.tags && t.tags.some(tag => tag.name.toLowerCase().includes(lowerSearch)))
-          )
-        );
+          ));
       }
-      // Apply income-specific sorting
       if (activeIncomeSort.sortBy) {
         processedTransactions.sort((a, b) => {
-          if (a.type === 'expense' || b.type === 'expense') return 0; // Should not happen
-          const incA = a as IncomeTransaction;
-          const incB = b as IncomeTransaction;
+          if (a.type === 'expense' || b.type === 'expense') return 0;
+          const incA = a as IncomeTransaction; const incB = b as IncomeTransaction;
           let valA: any, valB: any;
           switch (activeIncomeSort.sortBy) {
             case 'income_date': valA = new Date(incA.income_date).getTime(); valB = new Date(incB.income_date).getTime(); break;
@@ -286,48 +269,118 @@ const TransactionsPage: React.FC = () => {
       }
     }
     setFilteredAndSortedTransactions(processedTransactions);
+    if (processedTransactions.length > 0 && Math.ceil(processedTransactions.length / ITEMS_PER_PAGE) < currentPage) {
+      setCurrentPage(Math.ceil(processedTransactions.length / ITEMS_PER_PAGE));
+    } else if (processedTransactions.length === 0) {
+      setCurrentPage(1);
+    }
+
   }, [
     allCombinedTransactions, viewMode, debouncedGlobalSearchTerm,
     activeExpenseFilters, activeExpenseSort,
     activeIncomeFilters, activeIncomeSort,
-    timeZone, debouncedAdvancedSearchTerm, debouncedAdvancedMinAmount, debouncedAdvancedMaxAmount // Added advanced debounced values
+    TIME_ZONE, debouncedAdvancedSearchTerm, debouncedAdvancedMinAmount, debouncedAdvancedMaxAmount, currentPage
   ]);
+
 
   const handleExpenseFilterChange = useCallback((newFilters: Partial<ExpenseFilterState>) => {
     setActiveExpenseFilters(prev => ({ ...prev, ...newFilters }));
+    setCurrentPage(1);
   }, []);
   const handleExpenseSortChange = useCallback((newSort: ExpenseSortState) => {
     setActiveExpenseSort(newSort);
+    setCurrentPage(1);
   }, []);
   const handleIncomeFilterChange = useCallback((newFilters: Partial<IncomeFilterState>) => {
     setActiveIncomeFilters(prev => ({ ...prev, ...newFilters }));
+    setCurrentPage(1);
   }, []);
   const handleIncomeSortChange = useCallback((newSort: IncomeSortState) => {
     setActiveIncomeSort(newSort);
+    setCurrentPage(1);
   }, []);
 
-  const totalIncome = filteredAndSortedTransactions
+  const paginatedTransactions = filteredAndSortedTransactions.slice(
+    (currentPage - 1) * ITEMS_PER_PAGE,
+    currentPage * ITEMS_PER_PAGE
+  );
+  const totalPages = Math.ceil(filteredAndSortedTransactions.length / ITEMS_PER_PAGE);
+
+  const handlePreviousPage = () => {
+    setCurrentPage((prev) => Math.max(prev - 1, 1));
+  };
+  const handleNextPage = () => {
+    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+  };
+
+  const totalIncomeForFiltered = filteredAndSortedTransactions
     .filter((t): t is IncomeTransaction => t.type === 'income')
     .reduce((sum, inc) => sum + inc.amount, 0);
-  const totalExpenses = filteredAndSortedTransactions
+  const totalExpensesForFiltered = filteredAndSortedTransactions
     .filter((t): t is Transaction => t.type === 'expense')
     .reduce((sum, exp) => sum + exp.amount, 0);
+  const netFlowForFiltered = totalIncomeForFiltered - totalExpensesForFiltered;
 
-  const handleExportPdf = () => {
-    if (filteredAndSortedTransactions.length === 0) {
-      showToast("No transactions to export.", "info");
+
+  const handleExportPdfForDateRange = async (pdfStartDate: string, pdfEndDate: string) => {
+    showToast("Fetching data for PDF...", "info");
+    const { expenses, income } = await fetchTransactionsForDateRange(pdfStartDate, pdfEndDate);
+
+    if (expenses.length === 0 && income.length === 0) {
+      showToast("No transactions found for the selected date range.", "info");
       return;
     }
-    // Adapt data for exportToPdf if its structure is specific (e.g. expects 'category' not 'source')
-    const dataToExport = filteredAndSortedTransactions.map(t => ({
-      ...t,
-      date: t.type === 'expense' ? t.expense_date : t.income_date,
-      categoryOrSource: t.type === 'expense' ? t.category : t.source,
-    }));
 
-    const fileName = `Transactions_Report_${viewMode}_${format(new Date(), 'yyyyMMdd')}.pdf`;
-    const title = `Transactions Report (${viewMode}) as of ${format(new Date(), 'dd MMM yyyy')}`;
-    exportToPdf(dataToExport as any, fileName, title, timeZone); // Cast if needed
+    const transactionsToExport: CombinedTransaction[] = [
+      ...(expenses.map(e => ({ ...e, type: 'expense' as const }))),
+      ...(income.map(i => ({ ...i, type: 'income' as const })))
+    ];
+    transactionsToExport.sort((a, b) => {
+      const dateA = new Date(a.type === 'expense' ? a.expense_date : a.income_date);
+      const dateB = new Date(b.type === 'expense' ? b.expense_date : b.income_date);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+
+    const dataToExport: PdfExportRow[] = transactionsToExport.map(t => {
+      const transactionDate = t.type === 'expense' ? t.expense_date : t.income_date;
+      const categoryOrSource = t.type === 'expense'
+        ? ((t as Expense).sub_category ? `${(t as Expense).category} (${(t as Expense).sub_category})` : (t as Expense).category)
+        : (t as IncomeTransaction).source;
+      const formattedDate = format(parseISO(transactionDate), 'dd/MM/yy HH:mm');
+      const tagsString = t.tags && t.tags.length > 0 ? t.tags.map(tag => tag.name).join(', ') : 'N/A';
+      const amount = t.amount || 0;
+      const amountString = `${t.type === 'income' ? '+' : '-'}${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+
+      return {
+        'Type': t.type === 'income' ? 'Income' : 'Expense',
+        'Date': formattedDate,
+        'Category/Source': categoryOrSource,
+        'Description': t.description || 'N/A',
+        'Amount': amountString,
+        'Tags': tagsString,
+      };
+    });
+
+    const formattedStartDate = format(parseISO(pdfStartDate), 'dd MMM yy');
+    const formattedEndDate = format(parseISO(pdfEndDate), 'dd MMM yy');
+    const dateRangeString = pdfStartDate === pdfEndDate ? formattedStartDate : `${formattedStartDate} to ${formattedEndDate}`;
+
+    const fileName = `Transactions_Report_Range_${format(new Date(), 'yyyyMMdd')}.pdf`;
+    const title = `Transactions Report for ${dateRangeString}`;
+
+    const pdfTotalIncome = income.reduce((sum, item) => sum + item.amount, 0);
+    const pdfTotalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
+
+    const summaryData = {
+      totalIncome: pdfTotalIncome,
+      totalExpenses: pdfTotalExpenses,
+      netFlow: pdfTotalIncome - pdfTotalExpenses
+    };
+
+    // Determine reportType for exportUtils based on current viewMode if only one type is active, else 'all'
+    // For a general date range export from this page, 'all' is most appropriate.
+    exportToPdf(dataToExport, fileName, title, TIME_ZONE, summaryData, 'all');
     showToast("PDF export started.", "success");
   };
 
@@ -339,10 +392,23 @@ const TransactionsPage: React.FC = () => {
 
   const getSelectionPeriodText = useCallback(() => {
     let currentFilters: Partial<ExpenseFilterState> | Partial<IncomeFilterState> | null = null;
-    if (viewMode === 'expense') currentFilters = activeExpenseFilters;
-    else if (viewMode === 'income') currentFilters = activeIncomeFilters;
+    let specificFilterActive = false;
 
-    if (currentFilters) {
+    if (viewMode === 'expense') {
+      currentFilters = activeExpenseFilters;
+      const expenseFilters = currentFilters as Partial<ExpenseFilterState>;
+      if (expenseFilters.tag || expenseFilters.minAmount || expenseFilters.maxAmount || expenseFilters.category || expenseFilters.searchTerm) {
+        specificFilterActive = true;
+      }
+    } else if (viewMode === 'income') {
+      currentFilters = activeIncomeFilters;
+      const incomeFilters = currentFilters as Partial<IncomeFilterState>;
+      if (incomeFilters.tag || incomeFilters.minAmount || incomeFilters.maxAmount || incomeFilters.source || incomeFilters.searchTerm) {
+        specificFilterActive = true;
+      }
+    }
+
+    if (currentFilters && viewMode !== 'all') {
       if (currentFilters.startDate && currentFilters.endDate) {
         return `${format(parseISO(currentFilters.startDate), 'dd MMM yy')} - ${format(parseISO(currentFilters.endDate), 'dd MMM yy')}`;
       }
@@ -366,15 +432,14 @@ const TransactionsPage: React.FC = () => {
         return `Year ${selectedYearNumber}`;
       } else {
         if (monthLabel) return `${monthLabel} (All Years)`;
-        // For 'all' view mode, or if no specific date/year/month filter is active for expense/income mode
-        return viewMode === 'all' ? "All Time (default sort by date)" : "All Time";
+        if (specificFilterActive) return "Current Filters Applied";
+        return "All Time";
       }
     }
-    return "All Time (default sort by date)"; // Default for 'all' viewMode or if filters are not applicable
+    return "All Time";
   }, [viewMode, activeExpenseFilters, activeIncomeFilters]);
 
   const selectionPeriod = getSelectionPeriodText();
-
 
   return (
     <div className="space-y-8">
@@ -382,37 +447,38 @@ const TransactionsPage: React.FC = () => {
         <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text mb-4">Transactions History</h1>
 
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          {/* Summary Cards */}
-          <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-dark-text mb-1">Total Income</h3>
+          <div className="p-4 bg-green-50 dark:bg-green-800/30 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-dark-text-secondary mb-1">Total Income (Filtered)</h3>
             <p className="text-2xl font-bold text-green-600 dark:text-green-400">
-              ₹{totalIncome.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{totalIncomeForFiltered.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-dark-text mb-1">Total Expenses</h3>
+          <div className="p-4 bg-red-50 dark:bg-red-800/30 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-dark-text-secondary mb-1">Total Expenses (Filtered)</h3>
             <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-              ₹{totalExpenses.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              ₹{totalExpensesForFiltered.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
-          <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg shadow">
-            <h3 className="text-lg font-semibold text-gray-700 dark:text-dark-text mb-1">Net Balance</h3>
-            <p className={`text-2xl font-bold ${totalIncome - totalExpenses >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
-              ₹{(totalIncome - totalExpenses).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          <div className="p-4 bg-blue-50 dark:bg-blue-800/30 rounded-lg shadow">
+            <h3 className="text-lg font-semibold text-gray-700 dark:text-dark-text-secondary mb-1">Net Flow (Filtered)</h3>
+            <p className={`text-2xl font-bold ${netFlowForFiltered >= 0 ? 'text-blue-600 dark:text-blue-400' : 'text-red-600 dark:text-red-400'}`}>
+              ₹{(netFlowForFiltered).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </p>
           </div>
         </div>
 
-        {/* View Mode Selector and Global Search for 'all' mode */}
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 p-4 bg-gray-50 dark:bg-dark-card rounded-lg shadow">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 p-4 bg-gray-50 dark:bg-dark-card-secondary rounded-lg shadow">
           <div className="flex items-center gap-2">
             <Eye size={20} className="text-gray-600 dark:text-dark-text-secondary" />
             <Select
               id="viewMode"
               value={viewMode}
-              onChange={(e) => setViewMode(e.target.value as 'all' | 'expense' | 'income')}
+              onChange={(e) => {
+                setViewMode(e.target.value as 'all' | 'expense' | 'income');
+                setCurrentPage(1);
+              }}
               options={viewModeOptions}
-              className="w-48 bg-white dark:bg-dark-input"
+              className="w-48 bg-white dark:bg-dark-input border-gray-300 dark:border-gray-600 rounded-md"
             />
           </div>
           {viewMode === 'all' && (
@@ -421,21 +487,23 @@ const TransactionsPage: React.FC = () => {
               type="search"
               placeholder="Search all transactions..."
               value={globalSearchTerm}
-              onChange={(e) => setGlobalSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setGlobalSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
               icon={<SearchIcon size={18} className="text-gray-400 dark:text-dark-text-secondary" />}
               containerClassName="w-full sm:w-auto flex-grow sm:flex-grow-0"
-              className="bg-white dark:bg-dark-input"
+              className="bg-white dark:bg-dark-input rounded-md"
             />
           )}
         </div>
 
-        {/* Conditionally render AdvancedFilter */}
         {viewMode === 'expense' && (
           <AdvancedFilter
-            key="expense-filter" // Add key to ensure re-mount when mode changes
+            key="expense-filter"
             mode="expense"
-            initialFilters={activeExpenseFilters} // Pass the current active expense filters
-            onFilterChange={handleExpenseFilterChange as any} // Cast to any if types are complex for AdvancedFilter's union
+            initialFilters={activeExpenseFilters}
+            onFilterChange={handleExpenseFilterChange as any}
             initialSort={activeExpenseSort}
             onSortChange={handleExpenseSortChange as any}
             presetCategories={presetExpenseCategories}
@@ -443,7 +511,7 @@ const TransactionsPage: React.FC = () => {
         )}
         {viewMode === 'income' && (
           <AdvancedFilter
-            key="income-filter" // Add key
+            key="income-filter"
             mode="income"
             initialFilters={activeIncomeFilters}
             onFilterChange={handleIncomeFilterChange as any}
@@ -452,26 +520,21 @@ const TransactionsPage: React.FC = () => {
           />
         )}
 
-        {/* Display Area for transactions and export button */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center my-4 gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
           <p className="text-sm text-gray-600 dark:text-dark-text-secondary">
-            Displaying {filteredAndSortedTransactions.length} of {allCombinedTransactions.length} records.
-            {selectionPeriod !== "All Time (default sort by date)" && <><br />Filtered period: <span className="font-semibold">{selectionPeriod}</span></>}
+            Displaying {paginatedTransactions.length} of {filteredAndSortedTransactions.length} records.
+            {selectionPeriod !== "All Time" && <><br />Filtered period: <span className="font-semibold">{selectionPeriod}</span></>}
           </p>
-          {filteredAndSortedTransactions.length > 0 && (
-            <Button onClick={handleExportPdf} variant="outline" size="sm">
-              <Download size={16} className="mr-2" /> Export PDF
-            </Button>
-          )}
+          {/* Update button to open modal */}
+          <Button onClick={() => setIsDateRangeModalOpen(true)} variant="outline" size="sm">
+            <Download size={16} className="mr-2" /> Export PDF by Date Range
+          </Button>
         </div>
 
-
-        {/* Transaction List/Table */}
-        {isLoading ? (
+        {isLoading && !isDateRangeModalOpen ? (
           <div className="flex justify-center items-center py-10"><Loader2 className="h-8 w-8 animate-spin text-primary-500 dark:text-dark-primary" /><p className="ml-3 text-gray-500 dark:text-dark-text-secondary">Loading transactions...</p></div>
-        ) : filteredAndSortedTransactions.length > 0 ? (
+        ) : paginatedTransactions.length > 0 ? (
           <>
-            {/* Desktop Table View */}
             <div className="hidden md:block overflow-x-auto bg-white dark:bg-dark-card rounded-lg shadow">
               <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead className="bg-gray-100 dark:bg-gray-700">
@@ -479,87 +542,142 @@ const TransactionsPage: React.FC = () => {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Date</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Category/Source</th>
-                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount (₹)</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Description</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Tags</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-300 uppercase tracking-wider">Amount (₹)</th>
                   </tr>
                 </thead>
                 <tbody className="bg-white dark:bg-dark-card divide-y divide-gray-200 dark:divide-gray-700">
-                  {filteredAndSortedTransactions.map((transaction) => (
-                    <tr key={`${transaction.type}-${transaction.id}-${transaction.created_at}`} className="hover:bg-gray-50 dark:hover:bg-gray-800">
+                  {paginatedTransactions.map((transaction) => (
+                    <tr key={`${transaction.type}-${transaction.id}-${transaction.created_at}`} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                       <td className={`px-6 py-4 whitespace-nowrap text-sm font-medium ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
                         {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-dark-text">
-                        {format(new Date(transaction.type === 'expense' ? transaction.expense_date : transaction.income_date), 'dd MMM yy, hh:mm a')}
+                        {format(parseISO(transaction.type === 'expense' ? transaction.expense_date! : transaction.income_date!), 'dd/MM/yy HH:mm')}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700 dark:text-dark-text truncate max-w-xs">
-                        {transaction.type === 'expense' ? transaction.category : transaction.source}
-                      </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-700 dark:text-dark-text">
-                        {transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {transaction.type === 'expense'
+                          ? ((transaction as Expense).sub_category ? `${(transaction as Expense).category} (${(transaction as Expense).sub_category})` : (transaction as Expense).category)
+                          : (transaction as IncomeTransaction).source}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-700 dark:text-dark-text truncate max-w-xs">
                         {transaction.description || 'N/A'}
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-700 dark:text-dark-text">
-                        {transaction.tags && transaction.tags.length > 0 ? (
-                          <div className="flex flex-wrap gap-1">
-                            {transaction.tags.slice(0, 2).map(tag => ( // Show max 2 tags, add "..." if more
-                              <span key={tag.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                                {tag.name}
-                              </span>
-                            ))}
-                            {transaction.tags.length > 2 && <span className="text-xs">...</span>}
-                          </div>
-                        ) : 'N/A'}
+                      <td className={`px-6 py-4 whitespace-nowrap text-sm text-right font-medium ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
+                        {transaction.type === 'income' ? '+' : '-'}{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
-            {/* Mobile Card View */}
-            <div className="md:hidden space-y-3">
-              {filteredAndSortedTransactions.map((transaction) => (
-                <div key={`${transaction.type}-${transaction.id}-mobile`} className="bg-white dark:bg-dark-card rounded-lg shadow p-4 border-l-4 ${transaction.type === 'income' ? 'border-green-500' : 'border-red-500'}">
-                  <div className="flex justify-between items-center mb-2">
-                    <span className={`text-lg font-semibold ${transaction.type === 'income' ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                      {transaction.type === 'income' ? `+ ₹${transaction.amount.toLocaleString('en-IN')}` : `- ₹${transaction.amount.toLocaleString('en-IN')}`}
-                    </span>
-                    <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
-                      {format(new Date(transaction.type === 'expense' ? transaction.expense_date : transaction.income_date), 'dd MMM, yy')}
+            <div className="md:hidden space-y-4">
+              {paginatedTransactions.map((transaction) => (
+                <div
+                  key={`${transaction.type}-${transaction.id}-mobile`}
+                  className={`bg-white dark:bg-dark-card rounded-xl shadow-lg p-4 border-l-4 ${transaction.type === 'income' ? 'border-green-500 dark:border-green-400' : 'border-red-500 dark:border-red-400'
+                    }`}
+                >
+                  <div className="flex justify-between items-start mb-2">
+                    <div>
+                      <span className={`block text-lg font-semibold ${transaction.type === 'income'
+                        ? 'text-green-600 dark:text-green-400'
+                        : 'text-red-600 dark:text-red-400'
+                        }`}>
+                        {transaction.type === 'income' ? '+' : '-'} ₹{transaction.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </span>
+                      <span className="text-xs text-gray-500 dark:text-dark-text-secondary">
+                        {format(parseISO(transaction.type === 'expense' ? transaction.expense_date! : transaction.income_date!), 'dd/MM/yy HH:mm')}
+                      </span>
+                    </div>
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${transaction.type === 'income'
+                      ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                      }`}>
+                      {transaction.type.charAt(0).toUpperCase() + transaction.type.slice(1)}
                     </span>
                   </div>
-                  <p className="text-md font-medium text-gray-800 dark:text-dark-text mb-1">
-                    {transaction.type === 'expense' ? transaction.category : transaction.source}
-                  </p>
-                  {transaction.description && <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-2 truncate">{transaction.description}</p>}
+
+                  <div className="mb-2">
+                    <span className="text-sm font-medium text-gray-800 dark:text-dark-text">
+                      {transaction.type === 'expense'
+                        ? ((transaction as Expense).sub_category ? `${(transaction as Expense).category} (${(transaction as Expense).sub_category})` : (transaction as Expense).category)
+                        : (transaction as IncomeTransaction).source}
+                    </span>
+                  </div>
+
+                  {transaction.description && (
+                    <p className="text-sm text-gray-600 dark:text-dark-text-secondary mb-2 leading-snug">
+                      {transaction.description}
+                    </p>
+                  )}
+
                   {transaction.tags && transaction.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {transaction.tags.map(tag => (
-                        <span key={tag.id} className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-200">
-                          {tag.name}
-                        </span>
-                      ))}
+                    <div className="mt-2">
+                      <div className="flex flex-wrap gap-1.5">
+                        {transaction.tags.map(tag => (
+                          <span
+                            key={tag.id}
+                            className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200"
+                          >
+                            <TagIconLucide size={12} className="mr-1 opacity-70" />
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
                     </div>
                   )}
                 </div>
               ))}
             </div>
+            {totalPages > 1 && (
+              <div className="flex justify-center items-center space-x-2 mt-6 py-2">
+                <Button onClick={handlePreviousPage} disabled={currentPage === 1} variant="outline" size="sm">
+                  <ChevronLeft size={16} className="mr-1" /> Previous
+                </Button>
+                <span className="text-sm text-gray-700 dark:text-dark-text-secondary">Page {currentPage} of {totalPages}</span>
+                <Button onClick={handleNextPage} disabled={currentPage === totalPages} variant="outline" size="sm">
+                  Next <ChevronRight size={16} className="ml-1" />
+                </Button>
+              </div>
+            )}
           </>
         ) : (
           <div className="text-center text-gray-500 dark:text-dark-text-secondary py-10">
             <p>No transactions found {
               viewMode === 'all' && debouncedGlobalSearchTerm ? `matching "${debouncedGlobalSearchTerm}"` :
                 (viewMode !== 'all' && debouncedAdvancedSearchTerm ? `matching "${debouncedAdvancedSearchTerm}" for ${viewMode}s` :
-                  (selectionPeriod !== "All Time (default sort by date)" ? `for ${selectionPeriod}` : 'for the selected criteria'))
+                  (selectionPeriod !== "All Time" ? `for ${selectionPeriod}` : 'for the selected criteria'))
             }.</p>
           </div>
         )}
       </div>
+      <DateRangeModal
+        isOpen={isDateRangeModalOpen}
+        onClose={() => setIsDateRangeModalOpen(false)}
+        onExport={handleExportPdfForDateRange} // Changed to a new handler
+        title="Export Transactions by Date Range"
+      />
     </div>
   );
 };
+
+interface SummaryCardProps {
+  title: string;
+  amount: number;
+  icon: React.ReactNode;
+  color: string;
+}
+const SummaryCard: React.FC<SummaryCardProps> = ({ title, amount, icon, color }) => (
+  <div className="content-card flex items-center space-x-4 p-4">
+    <div className={`p-3 rounded-full bg-opacity-10 dark:bg-opacity-20 ${color.replace('text-', 'bg-').replace('dark:text-', 'dark:bg-')}`}>
+      {icon}
+    </div>
+    <div>
+      <p className="text-sm text-gray-500 dark:text-dark-text-secondary">{title}</p>
+      <p className={`text-2xl font-semibold ${color}`}>₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+    </div>
+  </div>
+);
 
 export default TransactionsPage;
