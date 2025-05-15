@@ -460,7 +460,7 @@ const TransactionsPage: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 p-4 bg-gray-50 dark:bg-dark-card-secondary rounded-lg shadow">
+        <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4 p-4 bg-gray-50 dark:bg-dark-card rounded-lg shadow">
           <div className="flex items-center gap-2">
             <Eye size={20} className="text-gray-600 dark:text-dark-text-secondary" />
             <Select
