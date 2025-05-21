@@ -12,12 +12,22 @@ import { format, getYear, getMonth, parseISO, endOfDay, startOfDay } from 'date-
 import { toZonedTime } from 'date-fns-tz';
 import { useToast } from '../hooks/useToast';
 import { useDebounce } from '../hooks/useDebounce';
-import { Download, Loader2, CalendarDays, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  Download,
+  Loader2,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  PlusCircle, // Added
+  ChevronUp    // Added
+} from 'lucide-react';
 import Button from '../components/ui/Button';
 import ExpenseTable from '../components/Expenses/ExpenseTable';
 import AdvancedFilter from '../components/Filters/AdvancedFilter';
 import { exportToPdf } from '../utils/exportUtils';
-import DateRangeModal from '../components/ui/DateRangeModal'; // Import the new modal
+import DateRangeModal from '../components/ui/DateRangeModal';
+import ExpenseForm from '../components/Expenses/ExpenseForm'; // Added
+import classNames from 'classnames'; // Added
 
 const presetCategories: PresetCategoryType[] = [
   { id: 'bills', name: 'Bills' },
@@ -28,7 +38,7 @@ const presetCategories: PresetCategoryType[] = [
 ];
 
 const ITEMS_PER_PAGE = 15;
-const TIME_ZONE = 'Asia/Kolkata'; // Defined for consistency
+const TIME_ZONE = 'Asia/Kolkata';
 
 const HistoryPage: React.FC = () => {
   const [allExpenses, setAllExpenses] = useState<Expense[]>([]);
@@ -36,6 +46,9 @@ const HistoryPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const { user } = useAuth();
   const { showToast } = useToast();
+
+  // State for Add New Expense Form
+  const [isExpenseFormVisible, setIsExpenseFormVisible] = useState(false); // Added
 
   const defaultDisplayYear = 0;
   const defaultDisplayMonth = 0;
@@ -65,7 +78,7 @@ const HistoryPage: React.FC = () => {
   const debouncedMaxAmount = useDebounce(activeFilters.maxAmount || '', 500);
 
   const [currentPage, setCurrentPage] = useState(1);
-  const [isDateRangeModalOpen, setIsDateRangeModalOpen] = useState(false); // State for modal
+  const [isDateRangeModalOpen, setIsDateRangeModalOpen] = useState(false);
 
   const fetchAllExpenses = useCallback(async () => {
     if (!user) return;
@@ -84,7 +97,7 @@ const HistoryPage: React.FC = () => {
         expense_split_details: exp.expense_split_details || []
       })) as Expense[];
       setAllExpenses(fetchedExpenses);
-      setCurrentPage(1);
+      // setCurrentPage(1); // It's better to reset page in filter/sort handlers
     } catch (error: any) {
       console.error("Error fetching all expenses:", error);
       showToast("Failed to load expense history.", "error");
@@ -100,6 +113,7 @@ const HistoryPage: React.FC = () => {
   useEffect(() => {
     let processedExpenses = [...allExpenses];
 
+    // Date Range Filters (priority)
     if (activeFilters.startDate) {
       const localStartDate = parseISO(activeFilters.startDate);
       const startUTC = startOfDay(localStartDate).toISOString();
@@ -110,6 +124,8 @@ const HistoryPage: React.FC = () => {
       const endUTC = endOfDay(localEndDate).toISOString();
       processedExpenses = processedExpenses.filter(exp => exp.expense_date <= endUTC);
     }
+
+    // Month/Year filters (only if no date range is active)
     if (!activeFilters.startDate && !activeFilters.endDate) {
       if (activeFilters.selectedYear && activeFilters.selectedYear !== 0) {
         processedExpenses = processedExpenses.filter(exp => getYear(toZonedTime(new Date(exp.expense_date), TIME_ZONE)) === activeFilters.selectedYear);
@@ -118,6 +134,7 @@ const HistoryPage: React.FC = () => {
         processedExpenses = processedExpenses.filter(exp => getMonth(toZonedTime(new Date(exp.expense_date), TIME_ZONE)) + 1 === activeFilters.selectedMonth);
       }
     }
+
     if (activeFilters.category) {
       processedExpenses = processedExpenses.filter(exp => exp.category === activeFilters.category);
     }
@@ -158,23 +175,34 @@ const HistoryPage: React.FC = () => {
     }
 
     setFilteredAndSortedExpenses(processedExpenses);
-    if (processedExpenses.length > 0 && Math.ceil(processedExpenses.length / ITEMS_PER_PAGE) < currentPage) {
+    // Reset to page 1 if filters change and current page becomes invalid
+    if (Math.ceil(processedExpenses.length / ITEMS_PER_PAGE) < currentPage && processedExpenses.length > 0) {
       setCurrentPage(Math.ceil(processedExpenses.length / ITEMS_PER_PAGE));
+    } else if (currentPage === 0 && processedExpenses.length > 0) {
+        setCurrentPage(1);
     } else if (processedExpenses.length === 0) {
-      setCurrentPage(1);
+        setCurrentPage(1); // Or 0 depending on desired behavior for no items
     }
-  }, [allExpenses, activeFilters, activeSort, debouncedSearchTerm, debouncedMinAmount, debouncedMaxAmount, currentPage]);
+
+  }, [allExpenses, activeFilters, activeSort, debouncedSearchTerm, debouncedMinAmount, debouncedMaxAmount, currentPage]); // Added currentPage to dependencies
 
 
   const handleFilterChange = useCallback((newFilters: Partial<ExpenseFilterState>) => {
     setActiveFilters(prev => ({ ...prev, ...newFilters }));
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset page on filter change
   }, []);
 
   const handleSortChange = useCallback((newSort: ExpenseSortState) => {
     setActiveSort(newSort);
-    setCurrentPage(1);
+    setCurrentPage(1); // Reset page on sort change
   }, []);
+
+  // Handler for when a new expense is added via the form
+  const handleExpenseAdded = (_newExpense: Expense) => { // Added
+    fetchAllExpenses(); // Refresh the list
+    showToast("Expense added successfully!", "success");
+    setIsExpenseFormVisible(false); // Hide the form
+  };
 
   const handleExpenseUpdated = (_updatedExpense: Expense) => {
     fetchAllExpenses();
@@ -190,7 +218,8 @@ const HistoryPage: React.FC = () => {
     (currentPage - 1) * ITEMS_PER_PAGE,
     currentPage * ITEMS_PER_PAGE
   );
-  const totalPages = Math.ceil(filteredAndSortedExpenses.length / ITEMS_PER_PAGE);
+  const totalPages = Math.max(1, Math.ceil(filteredAndSortedExpenses.length / ITEMS_PER_PAGE));
+
 
   const handlePreviousPage = () => {
     setCurrentPage((prev) => Math.max(prev - 1, 1));
@@ -210,21 +239,21 @@ const HistoryPage: React.FC = () => {
 
     const yearForMonthFormatting = (activeFilters.selectedYear && activeFilters.selectedYear !== 0)
       ? activeFilters.selectedYear
-      : getYear(new Date());
+      : getYear(toZonedTime(new Date(), TIME_ZONE)); // Use current year if not specified for month formatting
 
     const selectedMonthNumber = activeFilters.selectedMonth || defaultDisplayMonth;
     const selectedYearNumber = activeFilters.selectedYear || defaultDisplayYear;
 
     let monthLabel = '';
     if (selectedMonthNumber !== 0) {
-      monthLabel = format(new Date(yearForMonthFormatting, selectedMonthNumber - 1, 1), 'MMM');
+      monthLabel = format(new Date(yearForMonthFormatting, selectedMonthNumber - 1, 1), 'MMMM'); // Full month name
     }
 
     if (selectedYearNumber !== 0) {
       if (monthLabel) return `${monthLabel} ${selectedYearNumber}`;
       return `Year ${selectedYearNumber}`;
     } else {
-      if (monthLabel) return `${monthLabel} (All Years)`;
+      if (monthLabel) return `${monthLabel} (All Years with this month)`; // Clarify if year is not set
       return "All Time";
     }
   }, [activeFilters.startDate, activeFilters.endDate, activeFilters.selectedYear, activeFilters.selectedMonth, defaultDisplayMonth, defaultDisplayYear]);
@@ -237,7 +266,7 @@ const HistoryPage: React.FC = () => {
       return;
     }
     showToast("Fetching data for PDF...", "info");
-    setIsLoading(true); // Indicate loading for PDF data fetch
+    // setIsLoading(true); // This isLoading is for the main page, PDF export can have its own if needed or be quick
 
     try {
       const { data: expensesInRange, error } = await supabase
@@ -258,7 +287,7 @@ const HistoryPage: React.FC = () => {
 
       if (expensesToExport.length === 0) {
         showToast("No expenses found for the selected date range.", "info");
-        setIsLoading(false);
+        // setIsLoading(false);
         return;
       }
 
@@ -268,7 +297,8 @@ const HistoryPage: React.FC = () => {
         const amountString = `-${exp.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         const categorySource = exp.sub_category ? `${exp.category} (${exp.sub_category})` : exp.category;
 
-        return {
+        // Include split details in PDF if available
+        let row: PdfExportRow = {
           'Type': 'Expense',
           'Date': formattedDate,
           'Category/Source': categorySource,
@@ -276,6 +306,17 @@ const HistoryPage: React.FC = () => {
           'Amount': amountString,
           'Tags': tagsString,
         };
+
+        if (exp.split_note) {
+          row['Split Note'] = exp.split_note;
+        }
+        if (exp.expense_split_details && exp.expense_split_details.length > 0) {
+          const splitDetailsString = exp.expense_split_details.map(sd =>
+            `${sd.person_name || 'Portion'}: ${Number(sd.amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+          ).join('; ');
+          row['Split Between'] = splitDetailsString;
+        }
+        return row;
       });
 
       const rangeStartFormatted = format(parseISO(pdfStartDate), 'dd MMM yy');
@@ -287,7 +328,7 @@ const HistoryPage: React.FC = () => {
 
       const totalForPdfRange = expensesToExport.reduce((sum, exp) => sum + exp.amount, 0);
       const summaryData = {
-        totalIncome: 0,
+        totalIncome: 0, // Assuming only expenses are exported here
         totalExpenses: totalForPdfRange,
         netFlow: -totalForPdfRange
       };
@@ -299,16 +340,46 @@ const HistoryPage: React.FC = () => {
       console.error("Error fetching expenses for PDF:", error);
       showToast("Failed to generate PDF. " + error.message, "error");
     } finally {
-      setIsLoading(false);
+      // setIsLoading(false);
     }
   };
 
 
   return (
     <div className="space-y-8">
+      {/* Main Content Card for Filters and Adding New Expense */}
       <div className="content-card">
-        <div className="flex flex-col md:flex-row justify-between items-center mb-4 gap-4">
+        <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4"> {/* Increased mb */}
           <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Expense History</h1>
+          {/* Button to toggle Add New Expense form */}
+          <Button
+            onClick={() => setIsExpenseFormVisible(!isExpenseFormVisible)}
+            variant="primary"
+            size="lg" // Consistent with Dashboard
+            className="w-full md:w-auto"
+          >
+            {isExpenseFormVisible ? <ChevronUp size={20} className="mr-2" /> : <PlusCircle size={20} className="mr-2" />}
+            {isExpenseFormVisible ? 'Close Expense Form' : 'Add New Expense'}
+          </Button>
+        </div>
+
+        {/* Collapsible Add New Expense Form */}
+        <div
+          className={classNames(
+            "overflow-hidden transition-all duration-500 ease-in-out",
+            {
+              "max-h-[1500px] opacity-100 mt-0 mb-6 border-t border-b border-gray-200 dark:border-gray-700 py-6": isExpenseFormVisible, // Adjusted styling
+              "max-h-0 opacity-0": !isExpenseFormVisible,
+            }
+          )}
+        >
+          {isExpenseFormVisible && (
+            <ExpenseForm
+              onExpenseAdded={handleExpenseAdded}
+              existingExpense={null} // For adding new
+              onFormCancel={() => setIsExpenseFormVisible(false)} // To close the form
+            />
+          )}
         </div>
 
         <AdvancedFilter
@@ -319,25 +390,32 @@ const HistoryPage: React.FC = () => {
           onSortChange={handleSortChange as any}
           presetCategories={presetCategories}
         />
+      </div>
 
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 pt-4 border-t border-gray-200 dark:border-gray-700">
-          <p className="text-lg text-gray-600 dark:text-dark-text-secondary">
-            Displaying {paginatedExpenses.length} of {filteredAndSortedExpenses.length} expenses
-            {selectionPeriod !== "All Time" && ` for: `}
-            <span className="font-semibold text-gray-700 dark:text-dark-text">
-              {selectionPeriod !== "All Time" ? selectionPeriod : ''}
-            </span>.
-            <br />
-            Total for selection:
-            <span className="font-bold text-primary-600 dark:text-dark-primary"> ₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-          </p>
-          {/* Update button to open modal */}
-          <Button onClick={() => setIsDateRangeModalOpen(true)} variant="outline" size="sm">
+      {/* Content Card for Displaying Expenses Table */}
+      <div className="content-card">
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 gap-3 pt-0"> {/* Removed pt-4 and border-t from here */}
+          <div>
+            <p className="text-lg text-gray-600 dark:text-dark-text-secondary">
+              Displaying {paginatedExpenses.length} of {filteredAndSortedExpenses.length} expenses
+              {selectionPeriod !== "All Time" && ` for: `}
+              <span className="font-semibold text-gray-700 dark:text-dark-text">
+                {selectionPeriod !== "All Time" ? selectionPeriod : ''}
+              </span>.
+            </p>
+            <p className="text-md text-gray-500 dark:text-dark-text-secondary">
+              Total for selection:
+              <span className="font-bold text-primary-600 dark:text-dark-primary ml-1">
+                ₹{totalForSelection.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+            </p>
+          </div>
+          <Button onClick={() => setIsDateRangeModalOpen(true)} variant="outline" size="sm" className="mt-2 sm:mt-0">
             <Download size={16} className="mr-2" /> Export PDF by Date Range
           </Button>
         </div>
 
-        {isLoading && !isDateRangeModalOpen ? (
+        {isLoading && !isDateRangeModalOpen && !isExpenseFormVisible ? ( // Ensure loader doesn't show if form is open and main content is already loaded
           <div className="flex justify-center items-center py-10">
             <Loader2 className="h-8 w-8 animate-spin text-primary-500 dark:text-dark-primary" />
             <p className="ml-3 text-gray-500 dark:text-dark-text-secondary">Loading history...</p>
@@ -346,8 +424,9 @@ const HistoryPage: React.FC = () => {
           <>
             <ExpenseTable
               expenses={paginatedExpenses}
-              onEdit={handleExpenseUpdated}
+              onEdit={handleExpenseUpdated} // This will be used by ExpenseTable for its edit modal
               onDelete={handleExpenseDeleted}
+              refreshExpenses={fetchAllExpenses} // Pass fetchAllExpenses to ExpenseTable
             />
             {totalPages > 1 && (
               <div className="flex justify-center items-center space-x-2 mt-6 py-2">
@@ -377,7 +456,7 @@ const HistoryPage: React.FC = () => {
           <div className="text-center text-gray-500 dark:text-dark-text-secondary py-10 space-y-2">
             <CalendarDays size={48} className="mx-auto text-gray-400 dark:text-gray-500" />
             <p>No expenses found {activeFilters.searchTerm ? `matching "${activeFilters.searchTerm}"` : (selectionPeriod !== "All Time" ? `for ${selectionPeriod}` : 'for the selected criteria')}.</p>
-            {allExpenses.length === 0 && !isLoading && <p className="text-sm">You haven't recorded any expenses yet.</p>}
+            {allExpenses.length === 0 && !isLoading && <p className="text-sm">You haven't recorded any expenses yet. Try adding one!</p>}
           </div>
         )}
       </div>
