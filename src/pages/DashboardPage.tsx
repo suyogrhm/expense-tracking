@@ -272,9 +272,9 @@ const DashboardPage: React.FC = () => {
       {/* Add New Expense Form Section */}
       <div className="content-card">
         <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-          <div>
+          <div className="text-center sm:text-left">
             <h1 className="text-3xl font-bold text-gray-800 dark:text-dark-text">Dashboard</h1>
-            <p className="text-gray-600 dark:text-dark-text-secondary">Overview for {currentMonthNameFormatted.split(' ')[0]}.</p>
+            <p className="text-gray-600 dark:text-dark-text-secondary">Overview for {currentMonthNameFormatted.split(' ')[0]}</p>
           </div>
           <Button onClick={() => setIsExpenseFormVisible(!isExpenseFormVisible)} variant="primary" size="lg" className="w-full sm:w-auto">
             {isExpenseFormVisible ? <ChevronUp size={20} className="mr-2" /> : <PlusCircle size={20} className="mr-2" />}

@@ -3,15 +3,16 @@ import type { Expense } from '../../types';
 import { formatInTimeZone } from 'date-fns-tz';
 import { Edit3, Trash2, AlertTriangle, Calendar, FileText, Tags, Users, Info, Eye } from 'lucide-react'; // Added Eye icon
 import Button from '../ui/Button';
-import ExpenseForm from './ExpenseForm'; 
-import Modal from '../ui/Modal'; 
+import ExpenseForm from './ExpenseForm';
+import Modal from '../ui/Modal';
 import { supabase } from '../../supabaseClient';
 import { useToast } from '../../hooks/useToast';
 
 interface ExpenseTableProps {
   expenses: Expense[];
-  onEdit: (expense: Expense) => void; 
-  onDelete: (expenseId: string) => void; 
+  onEdit: (expense: Expense) => void;
+  onDelete: (expenseId: string) => void;
+  refreshExpenses: () => Promise<void>; // Or () => void;
 }
 
 const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete }) => {
@@ -21,7 +22,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isSplitDetailsModalOpen, setIsSplitDetailsModalOpen] = useState(false); // State for split details modal visibility
-  const [isDeleting, setIsDeleting] = useState(false); 
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const { showToast } = useToast();
   const timeZone = 'Asia/Kolkata';
@@ -37,7 +38,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
   };
 
   const handleExpenseUpdatedInModal = (updatedExpense: Expense) => {
-    onEdit(updatedExpense); 
+    onEdit(updatedExpense);
     handleCloseEditModal();
   };
 
@@ -73,7 +74,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
       if (deleteSplitDetailsError) {
         console.error("Error deleting split details:", deleteSplitDetailsError);
       }
-      
+
       const { error: deleteTagsError } = await supabase
         .from('expense_tags')
         .delete()
@@ -82,15 +83,15 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
       if (deleteTagsError) {
         console.error("Error deleting associated tags:", deleteTagsError);
       }
-      
+
       const { error } = await supabase
         .from('expenses')
         .delete()
         .eq('id', deletingExpenseId);
-      
+
       if (error) throw error;
-      
-      onDelete(deletingExpenseId); 
+
+      onDelete(deletingExpenseId);
       showToast("Expense deleted successfully.", "success");
     } catch (error: any) {
       console.error("Error deleting expense:", error);
@@ -100,7 +101,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
       handleCloseDeleteConfirm();
     }
   };
-  
+
   if (!expenses || expenses.length === 0) {
     return <p className="text-center text-gray-500 dark:text-dark-text-secondary py-4">No expenses to display.</p>;
   }
@@ -120,11 +121,11 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
                   {formatInTimeZone(new Date(expense.expense_date), timeZone, 'dd MMM yy, hh:mm a')}
                 </td>
                 <td className="px-4 sm:px-6 py-4">
-                    {expense.category}
-                    {expense.sub_category && <span className="block text-xs text-gray-500 dark:text-dark-text-secondary">{expense.sub_category}</span>}
+                  {expense.category}
+                  {expense.sub_category && <span className="block text-xs text-gray-500 dark:text-dark-text-secondary">{expense.sub_category}</span>}
                 </td>
-                <td className="px-4 sm:px-6 py-4 text-right font-medium text-gray-800 dark:text-dark-text"> 
-                  {expense.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} 
+                <td className="px-4 sm:px-6 py-4 text-right font-medium text-gray-800 dark:text-dark-text">
+                  {expense.amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </td>
                 <td className="px-4 sm:px-6 py-4 max-w-xs truncate" title={expense.description || undefined}>
                   {expense.description || 'N/A'}
@@ -145,7 +146,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
                         Yes ({expense.expense_split_details?.length || 0} people)
                       </span>
                       <Button variant="link" size="sm" onClick={() => handleOpenSplitDetailsModal(expense)} className="p-0 text-xs">
-                        <Eye size={14} className="mr-1"/> View
+                        <Eye size={14} className="mr-1" /> View
                       </Button>
                     </div>
                   ) : (
@@ -179,8 +180,8 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
               </div>
             </div>
             <div className="text-xs text-gray-500 dark:text-dark-text-secondary mb-2 flex items-center">
-                <Calendar size={14} className="mr-1 flex-shrink-0" />
-                {formatInTimeZone(new Date(expense.expense_date), timeZone, 'dd MMM yy, hh:mm a')}
+              <Calendar size={14} className="mr-1 flex-shrink-0" />
+              {formatInTimeZone(new Date(expense.expense_date), timeZone, 'dd MMM yy, hh:mm a')}
             </div>
             {expense.description && (
               <p className="text-sm text-gray-600 dark:text-gray-300 mb-2 break-words">
@@ -188,46 +189,46 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
               </p>
             )}
             {expense.tags && expense.tags.length > 0 && (
-                <div className="mb-2">
-                    <div className="flex flex-wrap gap-1 items-center">
-                        <Tags size={14} className="text-gray-500 dark:text-dark-text-secondary mr-1 flex-shrink-0"/>
-                        {expense.tags.map(tag => (
-                            <span key={tag.id || tag.name} className="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-full">
-                                {tag.name}
-                            </span>
-                        ))}
-                    </div>
+              <div className="mb-2">
+                <div className="flex flex-wrap gap-1 items-center">
+                  <Tags size={14} className="text-gray-500 dark:text-dark-text-secondary mr-1 flex-shrink-0" />
+                  {expense.tags.map(tag => (
+                    <span key={tag.id || tag.name} className="text-xs bg-gray-200 dark:bg-gray-600 px-2 py-0.5 rounded-full">
+                      {tag.name}
+                    </span>
+                  ))}
                 </div>
+              </div>
             )}
-             {expense.is_split && (
-                <div className="mb-3 text-xs">
-                    <div className="flex items-center text-green-600 dark:text-green-400 mb-1 font-semibold">
-                        <Users size={14} className="mr-1 flex-shrink-0"/>
-                        Split Expense:
-                    </div>
-                    {expense.expense_split_details && expense.expense_split_details.length > 0 && (
-                        <ul className="list-none pl-1 space-y-0.5 text-gray-600 dark:text-dark-text-secondary">
-                            {expense.expense_split_details.map((detail, idx) =>(
-                                <li key={detail.id || idx} className="flex justify-between">
-                                  <span>{detail.person_name}:</span>
-                                  <span>₹{detail.amount.toLocaleString('en-IN')}</span>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                    {expense.split_note && 
-                        <div className="mt-1 flex items-start">
-                            <Info size={12} className="mr-1 mt-0.5 text-gray-400 dark:text-gray-500 flex-shrink-0"/> 
-                            <p className="text-gray-500 dark:text-dark-text-secondary italic">{expense.split_note}</p>
-                        </div>
-                    }
+            {expense.is_split && (
+              <div className="mb-3 text-xs">
+                <div className="flex items-center text-green-600 dark:text-green-400 mb-1 font-semibold">
+                  <Users size={14} className="mr-1 flex-shrink-0" />
+                  Split Expense:
                 </div>
+                {expense.expense_split_details && expense.expense_split_details.length > 0 && (
+                  <ul className="list-none pl-1 space-y-0.5 text-gray-600 dark:text-dark-text-secondary">
+                    {expense.expense_split_details.map((detail, idx) => (
+                      <li key={detail.id || idx} className="flex justify-between">
+                        <span>{detail.person_name}:</span>
+                        <span>₹{detail.amount.toLocaleString('en-IN')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                {expense.split_note &&
+                  <div className="mt-1 flex items-start">
+                    <Info size={12} className="mr-1 mt-0.5 text-gray-400 dark:text-gray-500 flex-shrink-0" />
+                    <p className="text-gray-500 dark:text-dark-text-secondary italic">{expense.split_note}</p>
+                  </div>
+                }
+              </div>
             )}
             <div className="flex justify-end space-x-2 mt-2 border-t border-color pt-2">
               <Button variant="outline" size="sm" onClick={() => handleOpenEditModal(expense)}>
                 <Edit3 size={14} className="mr-1" /> Edit
               </Button>
-              <Button variant="dangerOutline" size="sm" onClick={() => handleOpenDeleteConfirm(expense.id)}> 
+              <Button variant="dangerOutline" size="sm" onClick={() => handleOpenDeleteConfirm(expense.id)}>
                 <Trash2 size={14} className="mr-1" /> Delete
               </Button>
             </div>
@@ -240,7 +241,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
         <Modal isOpen={isEditModalOpen} onClose={handleCloseEditModal} title="Edit Expense">
           <ExpenseForm
             existingExpense={editingExpense}
-            onExpenseAdded={handleExpenseUpdatedInModal} 
+            onExpenseAdded={handleExpenseUpdatedInModal}
             onFormCancel={handleCloseEditModal}
           />
         </Modal>
@@ -290,7 +291,7 @@ const ExpenseTable: React.FC<ExpenseTableProps> = ({ expenses, onEdit, onDelete 
               </div>
             )}
             <div className="flex justify-end pt-4">
-                <Button variant="outline" onClick={handleCloseSplitDetailsModal}>Close</Button>
+              <Button variant="outline" onClick={handleCloseSplitDetailsModal}>Close</Button>
             </div>
           </div>
         </Modal>
